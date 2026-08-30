@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  NyayaVault design tokens.
+
+  A deep slate ground with a brass accent — the register of a records office
+  rather than a consumer app. Every colour is declared once here; components
+  reference semantic names (surface, ink, brand) and never raw hex values.
+*/
+
+:root {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* light — used for print and high-contrast environments */
+  --bg: 210 25% 97%;
+  --surface: 0 0% 100%;
+  --elevated: 210 30% 99%;
+  --line: 214 20% 88%;
+  --ink: 215 32% 14%;
+  --muted: 215 14% 42%;
+  --faint: 215 12% 60%;
+  --brand: 34 58% 42%;
+  --brand-ink: 34 62% 32%;
+  --ok: 152 52% 32%;
+  --warn: 32 88% 42%;
+  --danger: 0 62% 46%;
+  --info: 212 72% 44%;
+}
+
+.dark {
+  --bg: 215 32% 8%;
+  --surface: 216 30% 11%;
+  --elevated: 216 28% 14%;
+  --line: 215 22% 20%;
+  --ink: 210 32% 95%;
+  --muted: 214 14% 68%;
+  --faint: 215 12% 48%;
+  --brand: 36 62% 60%;
+  --brand-ink: 36 70% 72%;
+  --ok: 152 48% 52%;
+  --warn: 36 88% 60%;
+  --danger: 358 68% 62%;
+  --info: 209 78% 62%;
+}
+
+* {
+  border-color: hsl(var(--line));
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: hsl(var(--bg));
+  color: hsl(var(--ink));
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* A subtle authority gradient behind the whole application shell. */
+.app-ground {
+  background-image:
+    radial-gradient(60rem 40rem at 12% -10%, hsl(var(--brand) / 0.07), transparent 60%),
+    radial-gradient(50rem 34rem at 100% 0%, hsl(var(--info) / 0.06), transparent 55%);
+}
+
+:focus-visible {
+  outline: 2px solid hsl(var(--brand));
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--line));
+  border-radius: 8px;
+  border: 2px solid hsl(var(--bg));
+}
+
+/* Hashes are read character by character; a monospace slab makes that possible. */
+.hash {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.01em;
+  word-break: break-all;
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: hsl(var(--elevated));
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, hsl(var(--line) / 0.6), transparent);
+  animation: shimmer 1.5s infinite;
+}
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}

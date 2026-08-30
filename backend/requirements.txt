@@ -1,0 +1,30 @@
+# --- web framework -----------------------------------------------------------
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# --- data --------------------------------------------------------------------
+SQLAlchemy==2.0.36
+alembic==1.14.0
+psycopg2-binary==2.9.10
+pydantic==2.10.4
+pydantic-settings==2.7.0
+email-validator==2.2.0
+
+# --- security ----------------------------------------------------------------
+# bcrypt is used directly rather than through passlib: passlib 1.7.4 is
+# unmaintained and breaks against bcrypt >= 4.1. See app/core/security.py.
+bcrypt==4.2.1
+PyJWT==2.10.1
+
+# --- object storage ----------------------------------------------------------
+minio==7.2.12
+
+# --- testing -----------------------------------------------------------------
+pytest==8.3.4
+httpx==0.28.1
+
+# --- document processing -----------------------------------------------------
+pypdf==4.2.0
+pytesseract==0.3.10
+pdf2image==1.17.0
