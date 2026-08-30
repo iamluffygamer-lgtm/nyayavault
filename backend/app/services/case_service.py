@@ -220,23 +220,19 @@ def assign_member(
 
 def case_statistics(db: Session, *, user: User) -> dict[str, int]:
     """Counts for the dashboard, computed over the caller's visible cases only."""
-    cases, total = list_cases(db, user=user, limit=200)
-    visible_ids = [c.id for c in cases]
-
-    active = sum(
-        1
-        for c in cases
-        if c.status in {CaseStatus.OPEN, CaseStatus.UNDER_INVESTIGATION, CaseStatus.SUBMITTED}
-    )
-    documents = 0
-    if visible_ids:
-        documents = db.execute(
-            select(func.count()).select_from(Document).where(Document.case_id.in_(visible_ids))
-        ).scalar_one()
+    from app.services.authorization import get_authorized_cases_query
+    
+    auth_query = get_authorized_cases_query(user)
+    
+    total = db.scalar(select(func.count()).select_from(Case).where(Case.id.in_(auth_query))) or 0
+    active = db.scalar(select(func.count()).select_from(Case).where(Case.id.in_(auth_query), Case.status.in_({CaseStatus.OPEN, CaseStatus.UNDER_INVESTIGATION, CaseStatus.SUBMITTED}))) or 0
+    closed = db.scalar(select(func.count()).select_from(Case).where(Case.id.in_(auth_query), Case.status == CaseStatus.CLOSED)) or 0
+    
+    documents = db.scalar(select(func.count()).select_from(Document).where(Document.case_id.in_(auth_query))) or 0
 
     return {
         "total_cases": total,
         "active_cases": active,
-        "closed_cases": sum(1 for c in cases if c.status == CaseStatus.CLOSED),
+        "closed_cases": closed,
         "total_documents": int(documents),
     }

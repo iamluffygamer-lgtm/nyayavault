@@ -216,7 +216,7 @@ def archive_evidence(
     user: User = Depends(get_current_user),
 ) -> Any:
     evidence = get_evidence(db, evidence_id)
-    get_case_for_user(db, user, evidence.case_id)
+    get_case_for_user(db, user, evidence.case_id, require_write=True)
     require_role(user, frozenset({RoleName.ADMIN, RoleName.INVESTIGATOR, RoleName.LEGAL_OFFICER}), action="archive evidence")
     return update_status(db, evidence, EvidenceStatus.ARCHIVED, user)
 

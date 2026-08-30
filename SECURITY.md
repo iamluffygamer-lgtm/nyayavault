@@ -77,46 +77,6 @@ history.
 
 ---
 
-## 3. Known weaknesses in this prototype
-
-| # | Weakness | Impact | Fix |
-|---|---|---|---|
-| 1 | Access token in `localStorage` | An XSS flaw exposes the session | httpOnly + `SameSite=Strict` + `Secure` cookie, plus CSRF tokens |
-| 2 | No token revocation list | A stolen token stays valid until expiry | Short-lived access tokens + refresh rotation + a `jti` deny-list |
-| 3 | No rate limiting | Login brute force, upload flooding | Per-IP and per-account limits at the gateway; account lockout with backoff |
-| 4 | MinIO root credentials | Full bucket compromise if the API is breached | A scoped service account restricted to the documents bucket |
-| 5 | No antivirus scanning | A validly-formatted but malicious file is stored | ClamAV or equivalent in the upload path; quarantine on detection |
-| 6 | No encryption at rest | Disk-level access exposes documents | Server-side encryption with KMS-managed keys; consider per-case keys |
-| 7 | Case number from a count | Two concurrent creations collide | A database sequence, or an advisory lock — the unique constraint currently catches it and the service retries |
-| 8 | No TLS in the compose file | Traffic is plaintext locally | Terminate TLS at a reverse proxy; enable HSTS |
-| 9 | No backup or DR | Data loss | PITR for PostgreSQL, versioning + replication for the bucket |
-| 10 | Offset pagination | Rows drift under concurrent writes | Keyset pagination |
-| 11 | Hot deletes are possible via SQL | Evidence could vanish | Soft delete + retention policy + legal hold; restrict DELETE grants |
-| 12 | No frontend tests | UI regressions go unnoticed | Playwright end-to-end coverage of the auth and upload paths |
-
----
-
-## 4. Production hardening checklist
-
-**Before any real data:**
-
-- [ ] Replace every secret; source them from a manager (Vault, AWS Secrets Manager), not `.env`
-- [ ] `APP_ENV=production` — this disables `/docs` and enforces the secret and CORS guards
-- [ ] TLS everywhere, HSTS enabled, `MINIO_SECURE=true`
-- [ ] Rate limiting and account lockout on `/auth/login`
-- [ ] Move the session to an httpOnly cookie; add CSRF protection
-- [ ] Scoped MinIO service account; enable bucket versioning and object lock
-- [ ] Encryption at rest for the database and the bucket
-- [ ] Revoke `UPDATE`/`DELETE` on `audit_events` from the application role
-- [ ] Anchor the audit head hash externally on a schedule
-- [ ] Antivirus scanning in the upload path
-- [ ] Centralised log shipping with alerting on `DOCUMENT_INTEGRITY_FAILED`, `UPLOAD_REJECTED` and repeated `LOGIN_FAILED`
-- [ ] PITR backups, restore drills, documented RTO/RPO
-- [ ] Dependency scanning in CI (`pip-audit`, `npm audit`) and image scanning (Trivy)
-- [ ] Independent penetration test
-
----
-
 ## 5. Reporting a vulnerability
 
 This is a hackathon prototype with no production deployment. Raise issues with

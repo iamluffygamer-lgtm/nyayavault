@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import uuid
 from typing import Any
+from app.models.base import utcnow
 
 from sqlalchemy.orm import Session
 
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 VALID_TRANSITIONS = {
     EvidenceStatus.COLLECTED: {EvidenceStatus.REGISTERED},
     EvidenceStatus.REGISTERED: {EvidenceStatus.SEALED},
-    EvidenceStatus.SEALED: {EvidenceStatus.IN_CUSTODY},
+    EvidenceStatus.SEALED: {EvidenceStatus.IN_CUSTODY, EvidenceStatus.TRANSFER_PENDING},
     EvidenceStatus.IN_CUSTODY: {EvidenceStatus.TRANSFER_PENDING, EvidenceStatus.UNDER_ANALYSIS},
     EvidenceStatus.TRANSFER_PENDING: {EvidenceStatus.IN_CUSTODY},
     EvidenceStatus.UNDER_ANALYSIS: {EvidenceStatus.ANALYZED},
@@ -41,58 +42,66 @@ def register_evidence(
     if case.status == CaseStatus.ARCHIVED:
         raise PermissionDeniedError("Cannot add evidence to an archived case.")
 
-    # Must be unique in case
-    existing = db.query(Evidence).filter_by(case_id=case.id, evidence_number=create.title).first()
-    # Actually evidence_number generation can be explicit or we can just generate a UUID or use a counter. Wait, prompt says: "Evidence number must be unique within the case." 
-    # Let's generate a unique evidence number based on case.case_number or let the client pass it? 
-    # The schema doesn't have evidence_number. Let's auto-generate it.
-    count = db.query(Evidence).filter_by(case_id=case.id).count()
-    evidence_num = f"{case.case_number}-EV-{count + 1:04d}"
-
     source_doc = None
     sha256_hash = None
     if create.source_document_id:
         source_doc = db.get(Document, create.source_document_id)
         if not source_doc or source_doc.case_id != case.id:
-            raise ValidationError("Source document not found or belongs to a different case.")
+            raise ValidationError("Source document not found in this case.")
+        
         latest = source_doc.latest_version()
         if latest:
             sha256_hash = latest.sha256_hash
 
-    evidence = Evidence(
-        case_id=case.id,
-        evidence_number=evidence_num,
-        title=create.title,
-        description=create.description,
-        evidence_type=create.evidence_type,
-        status=EvidenceStatus.REGISTERED,
-        collected_at=create.collected_at,
-        collected_location=create.collected_location,
-        collected_by=create.collected_by,
-        current_custodian=actor.id,
-        source_document_id=create.source_document_id,
-        sha256_hash=sha256_hash
-    )
-    db.add(evidence)
-    db.flush()
+    from sqlalchemy.exc import IntegrityError
+    
+    _MAX_ATTEMPTS = 5
+    for attempt in range(_MAX_ATTEMPTS):
+        count = db.query(Evidence).filter_by(case_id=case.id).count()
+        # use attempt to add jitter on conflict
+        evidence_num = f"{case.case_number}-EV-{count + 1 + attempt:04d}"
+        
+        evidence = Evidence(
+            case_id=case.id,
+            evidence_number=evidence_num,
+            title=create.title,
+            description=create.description,
+            evidence_type=create.evidence_type,
+            status=EvidenceStatus.COLLECTED,
+            collected_at=create.collected_at,
+            collected_location=create.collected_location,
+            collected_by=create.collected_by,
+            registered_by=actor.id,
+            current_custodian=actor.id,
+            source_document_id=create.source_document_id,
+            sha256_hash=sha256_hash
+        )
+        db.add(evidence)
+        try:
+            db.flush()
+            
+            audit_service.record_event(
+                db,
+                action=AuditAction.EVIDENCE_CREATED,
+                entity_type="evidence",
+                entity_id=str(evidence.id),
+                case_id=case.id,
+                actor_id=actor.id,
+                metadata={
+                    "evidence_number": evidence.evidence_number,
+                    "title": evidence.title,
+                    "evidence_type": evidence.evidence_type,
+                    "source_document_id": str(create.source_document_id) if create.source_document_id else None
+                },
+            )
+            db.commit()
+            db.refresh(evidence)
+            return evidence
+        except IntegrityError:
+            db.rollback()
+            if attempt == _MAX_ATTEMPTS - 1:
+                raise ConflictError("Could not generate a unique evidence number. Please try again.")
 
-    audit_service.record_event(
-        db,
-        action=AuditAction.EVIDENCE_CREATED,
-        entity_type="evidence",
-        entity_id=str(evidence.id),
-        case_id=case.id,
-        actor_id=actor.id,
-        metadata={
-            "evidence_number": evidence.evidence_number,
-            "title": evidence.title,
-            "evidence_type": evidence.evidence_type,
-            "source_document_id": str(create.source_document_id) if create.source_document_id else None
-        },
-    )
-    db.commit()
-    db.refresh(evidence)
-    return evidence
 
 
 def get_evidence(db: Session, evidence_id: uuid.UUID) -> Evidence:
@@ -157,9 +166,9 @@ def initiate_transfer(db: Session, evidence: Evidence, create: EvidenceTransferC
     )
     db.add(transfer)
     
-    old_status = evidence.status
-    evidence.status = EvidenceStatus.TRANSFER_PENDING
     db.flush()
+    # Enforce transition logic via update_status. (This also logs status change)
+    update_status(db, evidence, EvidenceStatus.TRANSFER_PENDING, actor)
 
     audit_service.record_event(
         db,
@@ -181,11 +190,11 @@ def accept_transfer(db: Session, transfer: EvidenceTransfer, actor: User) -> Evi
         raise PermissionDeniedError("Only the recipient can accept the transfer.")
 
     transfer.status = TransferStatus.COMPLETED
-    transfer.received_at = __import__("app.models.base", fromlist=["utcnow"]).utcnow()
+    transfer.received_at = utcnow()
     
     evidence = transfer.evidence
     evidence.current_custodian = actor.id
-    evidence.status = EvidenceStatus.IN_CUSTODY
+    update_status(db, evidence, EvidenceStatus.IN_CUSTODY, actor)
 
     audit_service.record_event(
         db,
@@ -208,7 +217,7 @@ def reject_transfer(db: Session, transfer: EvidenceTransfer, actor: User) -> Evi
 
     transfer.status = TransferStatus.REJECTED
     evidence = transfer.evidence
-    evidence.status = EvidenceStatus.IN_CUSTODY # custodian remains the same
+    update_status(db, evidence, EvidenceStatus.IN_CUSTODY, actor)
 
     audit_service.record_event(
         db,
@@ -229,11 +238,21 @@ def verify_integrity(db: Session, storage: ObjectStorage, evidence: Evidence, ac
         raise ValidationError("This evidence is not associated with a document.")
     
     doc = db.get(Document, evidence.source_document_id)
-    latest_version = doc.latest_version()
-    if not latest_version:
+    # We must check the version that was actually linked to this evidence
+    target_version = None
+    for v in doc.versions:
+        if v.sha256_hash == evidence.sha256_hash:
+            target_version = v
+            break
+            
+    if not target_version:
+        # If we can't find it by hash, default to latest as fallback (though ideally we should link evidence to a specific version id)
+        target_version = doc.latest_version()
+        
+    if not target_version:
         raise ValidationError("Source document has no versions.")
     
-    result = verify_version(storage, latest_version)
+    result = verify_version(storage, target_version)
     
     # We compare result.computed_sha256 with evidence.sha256_hash instead of doc version hash
     matches = False
@@ -261,5 +280,5 @@ def verify_integrity(db: Session, storage: ObjectStorage, evidence: Evidence, ac
         "expected_hash": evidence.sha256_hash,
         "actual_hash": result.computed_sha256,
         "is_intact": matches,
-        "verified_at": __import__("app.models.base", fromlist=["utcnow"]).utcnow().isoformat()
+        "verified_at": utcnow().isoformat()
     }

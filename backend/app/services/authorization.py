@@ -159,7 +159,7 @@ def get_authorized_cases_query(user: User) -> select:
     if user.role_name in (RoleName.ADMIN, RoleName.AUDITOR):
         return select(Case.id)
     
-    return select(Case.id).outerjoin(
+    return select(Case.id).distinct().outerjoin(
         CaseAssignment, CaseAssignment.case_id == Case.id
     ).where(
         or_(

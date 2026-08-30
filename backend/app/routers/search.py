@@ -96,7 +96,7 @@ def trigger_ocr(
         from app.errors import NotFoundError
         raise NotFoundError("Document not found")
         
-    get_case_for_user(db, user, doc.case_id, require_write=False)
+    get_case_for_user(db, user, doc.case_id, require_write=True)
     
     version_id = None
     for v in doc.versions:
@@ -108,6 +108,11 @@ def trigger_ocr(
         from app.errors import NotFoundError
         raise NotFoundError("Version not found")
 
+    from app.models.document import DocumentText, ExtractionStatus
+    from sqlalchemy import select
+    existing_text = db.scalar(select(DocumentText).where(DocumentText.document_version_id == version_id))
+    if existing_text and (existing_text.extraction_status == ExtractionStatus.PROCESSING or (existing_text.extraction_status == ExtractionStatus.COMPLETED and existing_text.extraction_method == "OCR")):
+        return {"status": "Already processed or processing"}
     background_tasks.add_task(extraction_service.extract_text_task, version_id, True)
     return {"status": "Processing"}
 
