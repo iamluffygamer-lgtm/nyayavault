@@ -1,4 +1,5 @@
 from __future__ import annotations
+from app.models.permission import PermissionName
 
 from typing import Annotated
 

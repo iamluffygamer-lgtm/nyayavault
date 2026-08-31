@@ -1,4 +1,5 @@
 from __future__ import annotations
+from app.models.permission import PermissionName
 
 import logging
 import uuid
@@ -19,7 +20,7 @@ from app.schemas.document import (
     IntegrityReport,
 )
 from app.services import audit_service, document_service, extraction_service
-from app.services.authorization import CAN_UPLOAD_DOCUMENT, get_case_for_user, require_role
+from app.services.authorization import AuthorizationService, get_case_for_user
 from app.services.file_validation import inspect_upload
 
 logger = logging.getLogger(__name__)
@@ -69,8 +70,9 @@ async def upload_document(
     `require_write=True` authorises them for this case and refuses closed or
     archived cases. Only then is a single byte of the file read.
     """
-    require_role(user, CAN_UPLOAD_DOCUMENT, action="upload documents")
     access = get_case_for_user(db, user, case_id, require_write=True)
+    access = get_case_for_user(db, user, case_id, require_write=True)
+    AuthorizationService(db).require(user, PermissionName.DOCUMENT_UPLOAD, access.case)
 
     settings = get_settings()
     try:
@@ -141,9 +143,9 @@ async def upload_version(
     `change_reason` is mandatory here — a revision to evidence without a stated
     reason is not something a court-facing system should accept silently.
     """
-    require_role(user, CAN_UPLOAD_DOCUMENT, action="upload documents")
     document = document_service.get_document(db, document_id)
     access = get_case_for_user(db, user, document.case_id, require_write=True)
+    AuthorizationService(db).require(user, PermissionName.DOCUMENT_UPLOAD, access.case)
 
     settings = get_settings()
     inspected = await inspect_upload(

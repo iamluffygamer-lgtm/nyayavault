@@ -67,11 +67,10 @@ def register_evidence(
             title=create.title,
             description=create.description,
             evidence_type=create.evidence_type,
-            status=EvidenceStatus.COLLECTED,
+            status=EvidenceStatus.REGISTERED,
             collected_at=create.collected_at,
             collected_location=create.collected_location,
             collected_by=create.collected_by,
-            registered_by=actor.id,
             current_custodian=actor.id,
             source_document_id=create.source_document_id,
             sha256_hash=sha256_hash

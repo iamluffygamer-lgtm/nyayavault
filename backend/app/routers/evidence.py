@@ -19,7 +19,7 @@ from app.schemas.evidence import (
     EvidenceTransferRead,
     IntegrityVerificationResult,
 )
-from app.services.authorization import get_case_for_user
+from app.services.authorization import AuthorizationService, get_case_for_user
 from app.services.evidence_service import (
     accept_transfer,
     get_evidence,
@@ -31,7 +31,8 @@ from app.services.evidence_service import (
 )
 from app.storage import ObjectStorage
 from app.models.role import RoleName
-from app.services.authorization import require_role
+from app.models.permission import PermissionName
+from app.services.authorization import AuthorizationService, get_case_for_user
 
 router = APIRouter(tags=["Evidence"])
 
@@ -48,8 +49,9 @@ def create_evidence(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> Any:
-    access = get_case_for_user(db, user, case_id, require_write=True)
-    require_role(user, frozenset({RoleName.INVESTIGATOR, RoleName.ADMIN}), action="create evidence")
+    case = db.get(Case, case_id)
+    if not case: raise NotFoundError('Case not found.')
+    access = AuthorizationService(db).require(user, PermissionName.EVIDENCE_CREATE, case)
     return register_evidence(db, case=access.case, create=payload, actor=user)
 
 
@@ -82,7 +84,7 @@ def get_evidence_detail(
     user: User = Depends(get_current_user),
 ) -> Any:
     evidence = get_evidence(db, evidence_id)
-    get_case_for_user(db, user, evidence.case_id)
+    access = get_case_for_user(db, user, evidence.case_id)
     return evidence
 
 
@@ -99,8 +101,8 @@ def create_transfer(
     user: User = Depends(get_current_user),
 ) -> Any:
     evidence = get_evidence(db, evidence_id)
-    get_case_for_user(db, user, evidence.case_id, require_write=True)
-    require_role(user, frozenset({RoleName.INVESTIGATOR, RoleName.FORENSIC_OFFICER, RoleName.ADMIN}), action="transfer evidence")
+    case = db.get(Case, evidence.case_id)
+    access = AuthorizationService(db).require(user, PermissionName.EVIDENCE_TRANSFER, case)
     return initiate_transfer(db, evidence=evidence, create=payload, actor=user)
 
 
@@ -115,7 +117,7 @@ def list_transfers(
     user: User = Depends(get_current_user),
 ) -> Any:
     evidence = get_evidence(db, evidence_id)
-    get_case_for_user(db, user, evidence.case_id)
+    access = get_case_for_user(db, user, evidence.case_id)
     return db.scalars(
         select(EvidenceTransfer)
         .where(EvidenceTransfer.evidence_id == evidence_id)
@@ -136,7 +138,8 @@ def accept_transfer_endpoint(
     transfer = db.get(EvidenceTransfer, transfer_id)
     if not transfer:
         raise NotFoundError("Transfer not found.")
-    get_case_for_user(db, user, transfer.evidence.case_id)
+    case = db.get(Case, transfer.evidence.case_id)
+    access = AuthorizationService(db).require(user, PermissionName.EVIDENCE_TRANSFER, case)
     return accept_transfer(db, transfer=transfer, actor=user)
 
 
@@ -153,7 +156,8 @@ def reject_transfer_endpoint(
     transfer = db.get(EvidenceTransfer, transfer_id)
     if not transfer:
         raise NotFoundError("Transfer not found.")
-    get_case_for_user(db, user, transfer.evidence.case_id)
+    case = db.get(Case, transfer.evidence.case_id)
+    access = AuthorizationService(db).require(user, PermissionName.EVIDENCE_TRANSFER, case)
     return reject_transfer(db, transfer=transfer, actor=user)
 
 
@@ -164,8 +168,8 @@ def seal_evidence(
     user: User = Depends(get_current_user),
 ) -> Any:
     evidence = get_evidence(db, evidence_id)
-    get_case_for_user(db, user, evidence.case_id, require_write=True)
-    require_role(user, frozenset({RoleName.INVESTIGATOR, RoleName.ADMIN}), action="seal evidence")
+    case = db.get(Case, evidence.case_id)
+    access = AuthorizationService(db).require(user, PermissionName.EVIDENCE_SEAL, case)
     return update_status(db, evidence, EvidenceStatus.SEALED, user)
 
 
@@ -176,10 +180,10 @@ def start_analysis(
     user: User = Depends(get_current_user),
 ) -> Any:
     evidence = get_evidence(db, evidence_id)
-    get_case_for_user(db, user, evidence.case_id, require_write=True)
-    require_role(user, frozenset({RoleName.FORENSIC_OFFICER, RoleName.ADMIN}), action="analyze evidence")
+    case = db.get(Case, evidence.case_id)
+    access = AuthorizationService(db).require(user, PermissionName.EVIDENCE_ANALYZE, case)
     if evidence.current_custodian != user.id:
-        raise PermissionDeniedError("Only the current custodian can start analysis.")
+        raise PermissionDeniedError(f"Only the current custodian can start analysis. Custodian: {evidence.current_custodian}, User: {user.id}")
     return update_status(db, evidence, EvidenceStatus.UNDER_ANALYSIS, user)
 
 
@@ -190,8 +194,8 @@ def complete_analysis(
     user: User = Depends(get_current_user),
 ) -> Any:
     evidence = get_evidence(db, evidence_id)
-    get_case_for_user(db, user, evidence.case_id, require_write=True)
-    require_role(user, frozenset({RoleName.FORENSIC_OFFICER, RoleName.ADMIN}), action="analyze evidence")
+    case = db.get(Case, evidence.case_id)
+    access = AuthorizationService(db).require(user, PermissionName.EVIDENCE_ANALYZE, case)
     if evidence.current_custodian != user.id:
         raise PermissionDeniedError("Only the current custodian can complete analysis.")
     return update_status(db, evidence, EvidenceStatus.ANALYZED, user)
@@ -204,8 +208,8 @@ def submit_evidence(
     user: User = Depends(get_current_user),
 ) -> Any:
     evidence = get_evidence(db, evidence_id)
-    get_case_for_user(db, user, evidence.case_id, require_write=True)
-    require_role(user, frozenset({RoleName.LEGAL_OFFICER, RoleName.INVESTIGATOR, RoleName.ADMIN}), action="submit evidence")
+    case = db.get(Case, evidence.case_id)
+    access = AuthorizationService(db).require(user, PermissionName.EVIDENCE_SUBMIT, case)
     return update_status(db, evidence, EvidenceStatus.COURT_SUBMITTED, user)
 
 
@@ -216,8 +220,8 @@ def archive_evidence(
     user: User = Depends(get_current_user),
 ) -> Any:
     evidence = get_evidence(db, evidence_id)
-    get_case_for_user(db, user, evidence.case_id, require_write=True)
-    require_role(user, frozenset({RoleName.ADMIN, RoleName.INVESTIGATOR, RoleName.LEGAL_OFFICER}), action="archive evidence")
+    case = db.get(Case, evidence.case_id)
+    access = AuthorizationService(db).require(user, PermissionName.EVIDENCE_ARCHIVE, case)
     return update_status(db, evidence, EvidenceStatus.ARCHIVED, user)
 
 
@@ -229,7 +233,7 @@ def verify_evidence(
     storage: ObjectStorage = Depends(get_storage),
 ) -> Any:
     evidence = get_evidence(db, evidence_id)
-    get_case_for_user(db, user, evidence.case_id)
+    access = get_case_for_user(db, user, evidence.case_id)
     # Auditor role should definitely be allowed. Other users as well since integrity verification shouldn't be restricted heavily
     # but the prompt says: "verify the current user can access the document", which `get_case_for_user` covers since documents are tied to cases.
     return verify_integrity(db, storage=storage, evidence=evidence, actor=user)

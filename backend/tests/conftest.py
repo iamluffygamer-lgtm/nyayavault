@@ -90,14 +90,13 @@ def storage() -> InMemoryStorage:
 @pytest.fixture(scope="function")
 def seeded(db_session: Session) -> dict:
     """Reference data plus one user per role."""
-    roles = {}
-    for name in RoleName:
-        role = Role(name=name.value, description=ROLE_DESCRIPTIONS[name])
-        db_session.add(role)
-        roles[name.value] = role
+    from app.seed import seed_roles
+    roles = seed_roles(db_session)
 
     department = Department(name="Cyber Crime Cell", description="Digital forensics")
+    department2 = Department(name="Other District", description="Other district")
     db_session.add(department)
+    db_session.add(department2)
     db_session.flush()
 
     people = {
@@ -111,13 +110,14 @@ def seeded(db_session: Session) -> dict:
 
     users = {}
     for username, role_name in people.items():
+        dept_id = department2.id if username in ("investigator2", "forensic") else department.id
         user = User(
             username=username,
             email=f"{username}@nyayavault.gov.in",
             full_name=username.title(),
             password_hash=hash_password(PASSWORDS[username]),
             role_id=roles[role_name.value].id,
-            department_id=department.id,
+            department_id=dept_id,
             is_active=True,
         )
         db_session.add(user)

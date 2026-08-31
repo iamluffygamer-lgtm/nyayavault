@@ -20,6 +20,7 @@ from app.models.case import (
 )
 from app.models.department import Department
 from app.models.document import Document, DocumentType, DocumentVersion, DocumentText, ExtractionMethod, ExtractionStatus
+from app.models.permission import Permission, PermissionName, RolePermission
 from app.models.role import ROLE_DESCRIPTIONS, Role, RoleName
 from app.models.user import User
 from app.models.evidence import Evidence, EvidenceTransfer, EvidenceStatus, TransferStatus
@@ -28,6 +29,9 @@ __all__ = [
     "Base",
     "Role",
     "RoleName",
+    "Permission",
+    "PermissionName",
+    "RolePermission",
     "ROLE_DESCRIPTIONS",
     "Department",
     "User",

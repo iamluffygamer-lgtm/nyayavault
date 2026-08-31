@@ -17,7 +17,7 @@ from app.models.document import Document
 from app.models.role import RoleName
 from app.models.user import User
 from app.services import audit_service
-from app.services.authorization import GLOBAL_READERS, assert_case_status_transition
+from app.services.authorization import assert_case_status_transition, get_authorized_cases_query
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +59,7 @@ def create_case(
             description=(description or "").strip() or None,
             status=status,
             created_by=actor.id,
+            department_id=actor.department_id,
         )
         db.add(case)
         try:
@@ -106,21 +107,8 @@ def list_cases(
     offset: int = 0,
 ) -> tuple[list[Case], int]:
     """Return `(cases, total_matching)` restricted to what the user may see."""
-    conditions = []
-
-    if user.role_name not in {str(r) for r in GLOBAL_READERS}:
-        conditions.append(
-            or_(
-                Case.created_by == user.id,
-                Case.id.in_(
-                    select(CaseAssignment.case_id).where(CaseAssignment.user_id == user.id)
-                ),
-            )
-        )
-
-    if status is not None:
-        conditions.append(Case.status == status)
-
+    from app.services.authorization import get_authorized_cases_query
+    conditions = [Case.id.in_(get_authorized_cases_query(user))]
     if search:
         # Parameter-bound LIKE. Wildcards in user input are escaped so a search
         # for "%" cannot widen the result set.

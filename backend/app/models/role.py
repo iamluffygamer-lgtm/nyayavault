@@ -11,6 +11,7 @@ from app.models.base import Base, uuid_pk
 
 if TYPE_CHECKING:
     from app.models.user import User
+    from app.models.permission import Permission
 
 
 class RoleName(StrEnum):
@@ -45,6 +46,9 @@ class Role(Base):
     description: Mapped[str | None] = mapped_column(String(512))
 
     users: Mapped[list["User"]] = relationship(back_populates="role")
+    permissions: Mapped[list["Permission"]] = relationship(
+        secondary="role_permissions", back_populates="roles", lazy="selectin"
+    )
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"<Role {self.name}>"

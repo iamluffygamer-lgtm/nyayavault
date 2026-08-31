@@ -88,15 +88,15 @@ def trigger_ocr(
     db: DbSession,
     user: CurrentUser,
 ) -> Any:
-    from app.services.authorization import get_case_for_user
     from app.models.document import Document
+    from app.services.authorization import AuthorizationService, PermissionName
     
     doc = db.get(Document, document_id)
     if not doc:
         from app.errors import NotFoundError
         raise NotFoundError("Document not found")
         
-    get_case_for_user(db, user, doc.case_id, require_write=True)
+    AuthorizationService(db).require(user, PermissionName.DOCUMENT_UPLOAD, doc.case)
     
     version_id = None
     for v in doc.versions:

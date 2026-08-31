@@ -1,4 +1,5 @@
 from __future__ import annotations
+from app.models.permission import PermissionName
 
 import uuid
 from typing import Annotated
@@ -22,7 +23,7 @@ from app.schemas.case import (
 )
 from app.schemas.common import Page
 from app.services import audit_service, case_service
-from app.services.authorization import CAN_CREATE_CASE, get_case_for_user, require_role
+from app.services.authorization import AuthorizationService, get_case_for_user
 
 router = APIRouter(prefix="/cases", tags=["Cases"])
 
@@ -34,7 +35,7 @@ router = APIRouter(prefix="/cases", tags=["Cases"])
     summary="Open a new case",
 )
 def create_case(payload: CaseCreate, db: DbSession, user: CurrentUser) -> CaseRead:
-    require_role(user, CAN_CREATE_CASE, action="open cases")
+    AuthorizationService(db).require(user, PermissionName.CASE_CREATE)
     case = case_service.create_case(
         db,
         title=payload.title,

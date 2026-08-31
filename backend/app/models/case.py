@@ -13,6 +13,7 @@ from app.models.base import Base, TimestampMixin, utcnow, uuid_pk
 if TYPE_CHECKING:
     from app.models.document import Document
     from app.models.user import User
+    from app.models.department import Department
 
 
 class CaseStatus(StrEnum):
@@ -46,6 +47,9 @@ class Case(Base, TimestampMixin):
     # Human-facing identifier, e.g. "NV-2026-000042". Generated server-side;
     # unique so two officers cannot register the same case reference.
     case_number: Mapped[str] = mapped_column(String(32), unique=True, nullable=False, index=True)
+
+    department_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("departments.id", ondelete="RESTRICT"), nullable=True, index=True)
+    department: Mapped["Department | None"] = relationship(lazy="joined")
 
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
