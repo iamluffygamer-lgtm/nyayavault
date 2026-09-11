@@ -67,3 +67,11 @@ class CaseStatistics(BaseModel):
     active_cases: int
     closed_cases: int
     total_documents: int
+
+class TimelineEvent(BaseModel):
+    id: str
+    timestamp: datetime
+    actor_name: str
+    action: str
+    summary: str
+    icon_hint: str

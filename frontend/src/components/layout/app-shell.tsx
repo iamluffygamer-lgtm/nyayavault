@@ -3,7 +3,16 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { FolderKanban, LayoutDashboard, LogOut, ScrollText, ShieldCheck } from "lucide-react";
+import { 
+  FolderKanban, 
+  LayoutDashboard, 
+  LogOut, 
+  ScrollText, 
+  Search,
+  ShieldCheck,
+  User as UserIcon,
+  Building
+} from "lucide-react";
 
 import { Wordmark } from "@/components/brand";
 import { Badge, Button, Skeleton } from "@/components/ui";
@@ -12,20 +21,37 @@ import { clearSession, getCachedUser, getToken } from "@/lib/auth";
 import { cn, titleCase } from "@/lib/utils";
 import type { User } from "@/types";
 
-const NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/cases", label: "Cases", icon: FolderKanban },
-  { href: "/audit", label: "Audit trail", icon: ScrollText, roles: ["ADMIN", "AUDITOR"] },
+const NAV_GROUPS = [
+  {
+    title: "Overview",
+    items: [
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    ]
+  },
+  {
+    title: "Case Management",
+    items: [
+      { href: "/cases", label: "Cases", icon: FolderKanban },
+      { href: "/search", label: "Global Search", icon: Search },
+    ]
+  },
+  {
+    title: "Audit & Compliance",
+    roles: ["ADMIN", "AUDITOR"],
+    items: [
+      { href: "/audit", label: "Audit Trail", icon: ScrollText, roles: ["ADMIN", "AUDITOR"] },
+    ]
+  },
+  {
+    title: "Admin Console",
+    roles: ["ADMIN"],
+    items: [
+      { href: "/admin/departments", label: "Departments", icon: Building },
+      { href: "/admin/users", label: "Users", icon: UserIcon },
+    ]
+  }
 ];
 
-/**
- * Authenticated shell.
- *
- * The guard here is a convenience, not a security control: it decides what to
- * render, nothing more. Every request still carries a bearer token that the API
- * validates, and hiding a nav link never substitutes for the server-side
- * authorisation checks.
- */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -39,8 +65,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
     setUser(getCachedUser());
 
-    // Re-confirm the session against the API: a cached user object could be
-    // stale, and only the server knows whether the account is still active.
     api
       .me()
       .then((fresh) => {
@@ -56,59 +80,82 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const role = user?.role?.name;
-  const visibleNav = NAV.filter((item) => !item.roles || (role && item.roles.includes(role)));
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-bg">
       {/* --------------------------------------------------------- sidebar */}
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-line bg-surface/50 lg:flex">
-        <div className="border-b border-line px-5 py-4">
-          <Wordmark />
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-line bg-surface lg:flex">
+        <div className="border-b border-line px-6 py-5">
+          <Wordmark showSubtitle={true} />
         </div>
 
-        <nav className="flex-1 space-y-1 p-3">
-          {visibleNav.map((item) => {
-            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-            const Icon = item.icon;
+        <nav className="flex-1 space-y-6 overflow-y-auto p-4">
+          {NAV_GROUPS.map((group, i) => {
+            if (group.roles && (!role || !group.roles.includes(role))) return null;
+            
+            const visibleItems = group.items.filter(item => !("roles" in item) || (role && (item as any).roles.includes(role)));
+            if (visibleItems.length === 0) return null;
+
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors",
-                  active
-                    ? "bg-brand/10 font-medium text-brand"
-                    : "text-muted hover:bg-elevated hover:text-ink"
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                {item.label}
-              </Link>
+              <div key={i} className="space-y-1">
+                <h4 className="px-3 pb-2 text-xs font-semibold tracking-wider text-muted uppercase">
+                  {group.title}
+                </h4>
+                <div className="space-y-1">
+                  {visibleItems.map((item) => {
+                    const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={cn(
+                          "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                          active
+                            ? "bg-brand/5 text-brand border-l-2 border-brand"
+                            : "text-ink/70 hover:bg-elevated hover:text-ink border-l-2 border-transparent"
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </nav>
 
-        <div className="border-t border-line p-3">
-          <div className="rounded-lg border border-line bg-elevated px-3 py-2.5">
+        <div className="border-t border-line p-4">
+          <div className="rounded-md border border-line bg-surface p-3 shadow-sm">
             {user ? (
               <>
-                <p className="truncate text-xs font-medium text-ink">
-                  {user.full_name || user.username}
-                </p>
-                <p className="mt-0.5 truncate text-[11px] text-faint">
-                  {user.department?.name ?? "No department"}
-                </p>
-                <Badge tone="brand" className="mt-2">
-                  <ShieldCheck className="h-3 w-3" />
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="h-8 w-8 rounded-full bg-brand/10 flex items-center justify-center text-brand">
+                    <UserIcon className="h-4 w-4" />
+                  </div>
+                  <div className="overflow-hidden">
+                    <p className="truncate text-sm font-semibold text-ink">
+                      {user.full_name || user.username}
+                    </p>
+                    <p className="truncate text-xs text-muted flex items-center gap-1 mt-0.5">
+                      <Building className="h-3 w-3" />
+                      {user.department?.name ?? "No department"}
+                    </p>
+                  </div>
+                </div>
+                <Badge tone="brand" className="w-full justify-center">
+                  <ShieldCheck className="h-3 w-3 mr-1" />
                   {titleCase(user.role.name)}
                 </Badge>
               </>
             ) : (
-              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-16 w-full" />
             )}
           </div>
-          <Button variant="ghost" size="sm" className="mt-2 w-full justify-start" onClick={signOut}>
-            <LogOut className="h-4 w-4" />
+          <Button variant="ghost" size="sm" className="mt-3 w-full justify-center text-muted hover:text-ink" onClick={signOut}>
+            <LogOut className="h-4 w-4 mr-2" />
             Sign out
           </Button>
         </div>
@@ -117,39 +164,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* ----------------------------------------------------------- main */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* mobile bar */}
-        <header className="flex items-center justify-between border-b border-line bg-surface/50 px-4 py-3 lg:hidden">
+        <header className="flex items-center justify-between border-b border-line bg-surface px-4 py-3 lg:hidden">
           <Wordmark />
           <Button variant="ghost" size="icon" onClick={signOut} aria-label="Sign out">
-            <LogOut className="h-4 w-4" />
+            <LogOut className="h-5 w-5 text-muted" />
           </Button>
         </header>
-        <nav className="flex gap-1 border-b border-line px-3 py-2 lg:hidden">
-          {visibleNav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "rounded-lg px-3 py-1.5 text-xs",
-                pathname.startsWith(item.href)
-                  ? "bg-brand/10 font-medium text-brand"
-                  : "text-muted"
-              )}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
 
-        <main className="flex-1 p-5 sm:p-7">
-          {checking && !user ? (
-            <div className="space-y-4">
-              <Skeleton className="h-8 w-56" />
-              <Skeleton className="h-28 w-full" />
-              <Skeleton className="h-64 w-full" />
-            </div>
-          ) : (
-            children
-          )}
+        <main className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-7xl p-6 md:p-8">
+            {checking && !user ? (
+              <div className="space-y-6">
+                <Skeleton className="h-8 w-64" />
+                <Skeleton className="h-32 w-full" />
+                <Skeleton className="h-64 w-full" />
+              </div>
+            ) : (
+              children
+            )}
+          </div>
         </main>
       </div>
     </div>
@@ -166,12 +199,12 @@ export function PageHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+    <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between border-b border-line pb-5">
       <div>
-        <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
-        {description && <p className="mt-1 text-xs text-muted">{description}</p>}
+        <h1 className="text-2xl font-bold tracking-tight text-ink">{title}</h1>
+        {description && <p className="mt-1.5 text-sm text-muted max-w-2xl">{description}</p>}
       </div>
-      {action}
+      {action && <div className="shrink-0">{action}</div>}
     </div>
   );
 }

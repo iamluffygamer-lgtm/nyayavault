@@ -20,11 +20,11 @@ import type {
   User,
 } from "@/types";
 
-const BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000").replace(
+export const BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000").replace(
   /\/$/,
   ""
 );
-const PREFIX = "/api/v1";
+export const PREFIX = "/api/v1";
 
 export class ApiError extends Error {
   constructor(
@@ -44,7 +44,7 @@ interface RequestOptions {
   signal?: AbortSignal;
 }
 
-async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = "GET", body, formData, signal } = options;
 
   const headers: Record<string, string> = {};
@@ -130,6 +130,9 @@ export const api = {
   listCaseMembers: (caseId: string) =>
     request<CaseAssignment[]>(`/cases/${caseId}/members`),
 
+  getCaseTimeline: (caseId: string, limit = 50, offset = 0) =>
+    request<Page<import("@/components/cases/case-timeline").TimelineEvent>>(`/cases/${caseId}/timeline?limit=${limit}&offset=${offset}`),
+
   caseAudit: (caseId: string, limit = 25) =>
     request<Page<AuditEvent>>(`/cases/${caseId}/audit?limit=${limit}`),
 
@@ -144,6 +147,17 @@ export const api = {
 
   verifyDocument: (documentId: string) =>
     request<IntegrityReport>(`/documents/${documentId}/verify`),
+
+  getAnchorStatus: (documentId: string, versionNumber: number) =>
+    request<import("@/types").BlockchainAnchor>(`/documents/${documentId}/versions/${versionNumber}/anchor`),
+
+  verifyChain: (documentId: string, versionNumber: number) =>
+    request<import("@/types").VerifyChainResult>(`/documents/${documentId}/versions/${versionNumber}/verify-chain`),
+
+  demoTamper: (documentId: string, versionNumber: number) =>
+    request<{ status: string; new_key: string }>(`/documents/${documentId}/versions/${versionNumber}/demo-tamper`, {
+      method: "POST"
+    }),
 
   uploadDocument: (caseId: string, form: FormData) =>
     request<DocumentDetail>(`/cases/${caseId}/documents`, { method: "POST", formData: form }),
@@ -188,9 +202,34 @@ export const api = {
   // ------------------------------------------------------- reference data
   listRoles: () => request<Role[]>("/roles"),
   listDepartments: () => request<Department[]>("/departments"),
+  // Admin Methods
+  createUser: (data: any) =>
+    request<User>("/users", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateUser: (id: string, data: any) =>
+    request<User>(`/users/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  createDepartment: (data: any) =>
+    request<Department>("/departments", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateDepartment: (id: string, data: any) =>
+    request<Department>(`/departments/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
   listUsers: (limit = 100) => request<Page<User>>(`/users?limit=${limit}`),
 
   // ------------------------------------------------------------- evidence
+  getEvidenceTimeline: (evidenceId: string, limit = 50, offset = 0) =>
+    request<Page<import("@/components/cases/case-timeline").TimelineEvent>>(`/evidence/${evidenceId}/timeline?limit=${limit}&offset=${offset}`),
+
   listEvidence: (caseId: string) => request<any[]>(`/cases/${caseId}/evidence`),
   createEvidence: (caseId: string, data: any) =>
     request<any>(`/cases/${caseId}/evidence`, { method: "POST", body: data }),

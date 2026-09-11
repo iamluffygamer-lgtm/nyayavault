@@ -18,7 +18,7 @@ from app import __version__
 from app.config import get_settings
 from app.errors import register_exception_handlers
 from app.logging_config import configure_logging
-from app.routers import audit, auth, cases, documents, users, evidence, search, departments
+from app.routers import audit, auth, cases, documents, users, evidence, search, departments, court
 from app.storage import StorageError, get_storage
 
 logger = logging.getLogger(__name__)
@@ -124,6 +124,9 @@ def create_app() -> FastAPI:
     app.include_router(audit.router, prefix=prefix)
     app.include_router(evidence.router, prefix=prefix)
     app.include_router(search.router, prefix=prefix)
+    app.include_router(court.router, prefix=prefix)
+    app.include_router(court.court_router, prefix=prefix)
+    app.include_router(departments.router, prefix=f'{prefix}/departments')
 
 
     @app.get("/health", tags=["System"], summary="Liveness probe")

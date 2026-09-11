@@ -5,7 +5,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import JSON, DateTime, Enum as SAEnum, ForeignKey, String
+from sqlalchemy import CheckConstraint, JSON, DateTime, Enum as SAEnum, ForeignKey, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -27,8 +27,15 @@ class AuditAction(StrEnum):
     LOGIN_SUCCEEDED = "LOGIN_SUCCEEDED"
     LOGIN_FAILED = "LOGIN_FAILED"
     USER_CREATED = "USER_CREATED"
+    USER_MODIFIED = "USER_MODIFIED"
+    DEPARTMENT_MODIFIED = "DEPARTMENT_MODIFIED"
     CASE_CREATED = "CASE_CREATED"
     CASE_VIEWED = "CASE_VIEWED"
+    COURT_ACCESS_GRANTED = "COURT_ACCESS_GRANTED"
+    COURT_ACCESS_REDEEMED = "COURT_ACCESS_REDEEMED"
+    COURT_CASE_VIEWED = "COURT_CASE_VIEWED"
+    COURT_DOCUMENT_VIEWED = "COURT_DOCUMENT_VIEWED"
+    COURT_VERIFY_REQUESTED = "COURT_VERIFY_REQUESTED"
     CASE_STATUS_CHANGED = "CASE_STATUS_CHANGED"
     CASE_ACCESS_DENIED = "CASE_ACCESS_DENIED"
     CASE_MEMBER_ASSIGNED = "CASE_MEMBER_ASSIGNED"
@@ -48,8 +55,10 @@ class AuditAction(StrEnum):
     EVIDENCE_COURT_SUBMITTED = "EVIDENCE_COURT_SUBMITTED"
     EVIDENCE_ARCHIVED = "EVIDENCE_ARCHIVED"
     EVIDENCE_INTEGRITY_VERIFIED = "EVIDENCE_INTEGRITY_VERIFIED"
+    EVIDENCE_INTEGRITY_FAILED = "EVIDENCE_INTEGRITY_FAILED"
     EVIDENCE_ACCESS_DENIED = "EVIDENCE_ACCESS_DENIED"
     SEARCH_PERFORMED = "SEARCH_PERFORMED"
+    ANCHOR_ATTEMPTED = "ANCHOR_ATTEMPTED"
 
 
 class AuditResult(StrEnum):
@@ -79,12 +88,23 @@ class AuditEvent(Base):
 
     __tablename__ = "audit_events"
 
+    __table_args__ = (
+        CheckConstraint(
+            "actor_id IS NOT NULL OR court_grant_id IS NOT NULL OR action = 'LOGIN_FAILED'",
+            name="chk_audit_attribution"
+        ),
+    )
+
     id: Mapped[uuid.UUID] = uuid_pk()
 
     # Nullable because failed logins are recorded before any actor is known.
     actor_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), index=True
     )
+    court_grant_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("court_access_grants.id", ondelete="RESTRICT"), index=True
+    )
+
     case_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("cases.id", ondelete="SET NULL"), index=True
     )

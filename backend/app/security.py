@@ -50,6 +50,7 @@ MIN_PASSWORD_LENGTH = 12
 MAX_PASSWORD_LENGTH = 256
 
 TOKEN_TYPE_ACCESS = "access"
+TOKEN_TYPE_COURT = "court_access"
 
 
 class PasswordPolicyError(ValueError):
@@ -144,5 +145,41 @@ def decode_access_token(token: str) -> dict[str, Any] | None:
         return None
 
     if claims.get("typ") != TOKEN_TYPE_ACCESS:
+        return None
+    return claims
+
+
+def create_court_token(case_id: uuid.UUID, grant_id: uuid.UUID, expires_minutes: int) -> tuple[str, int]:
+    settings = get_settings()
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(minutes=expires_minutes)
+
+    claims: dict[str, Any] = {
+        "sub": str(grant_id),
+        "case_id": str(case_id),
+        "typ": TOKEN_TYPE_COURT,
+        "iat": int(now.timestamp()),
+        "nbf": int(now.timestamp()),
+        "exp": int(expires_at.timestamp()),
+        "jti": uuid.uuid4().hex,
+        "iss": settings.app_name,
+    }
+    token = jwt.encode(claims, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    return token, int((expires_at - now).total_seconds())
+
+def decode_court_token(token: str) -> dict[str, Any] | None:
+    settings = get_settings()
+    try:
+        claims = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=[settings.jwt_algorithm],
+            issuer=settings.app_name,
+            options={"require": ["exp", "iat", "sub", "case_id"]},
+        )
+    except InvalidTokenError:
+        return None
+
+    if claims.get("typ") != TOKEN_TYPE_COURT:
         return None
     return claims

@@ -1,0 +1,15 @@
+{
+  "name": "nyayavault-blockchain",
+  "version": "1.0.0",
+  "description": "Local blockchain anchor layer for NyayaVault",
+  "scripts": {
+    "test": "hardhat test",
+    "deploy": "hardhat run scripts/deploy.js --network localhost",
+    "compile": "hardhat compile"
+  },
+  "devDependencies": {
+    "hardhat": "^2.22.17",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "ethers": "^6.13.4"
+  }
+}

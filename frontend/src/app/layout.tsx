@@ -10,14 +10,14 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0d1117",
+  themeColor: "#ffffff",
   width: "device-width",
   initialScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <body className="app-ground min-h-screen antialiased">{children}</body>
     </html>
   );

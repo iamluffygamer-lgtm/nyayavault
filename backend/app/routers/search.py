@@ -111,8 +111,15 @@ def trigger_ocr(
     from app.models.document import DocumentText, ExtractionStatus
     from sqlalchemy import select
     existing_text = db.scalar(select(DocumentText).where(DocumentText.document_version_id == version_id))
-    if existing_text and (existing_text.extraction_status == ExtractionStatus.PROCESSING or (existing_text.extraction_status == ExtractionStatus.COMPLETED and existing_text.extraction_method == "OCR")):
-        return {"status": "Already processed or processing"}
+    if existing_text:
+        if existing_text.extraction_status == ExtractionStatus.PROCESSING or (existing_text.extraction_status == ExtractionStatus.COMPLETED and existing_text.extraction_method == "OCR"):
+            return {"status": "Already processed or processing"}
+        existing_text.extraction_status = ExtractionStatus.PROCESSING
+    else:
+        existing_text = DocumentText(document_version_id=version_id, extraction_status=ExtractionStatus.PROCESSING)
+        db.add(existing_text)
+    
+    db.commit()
     background_tasks.add_task(extraction_service.extract_text_task, version_id, True)
     return {"status": "Processing"}
 

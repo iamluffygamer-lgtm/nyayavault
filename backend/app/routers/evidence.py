@@ -12,6 +12,8 @@ from app.errors import NotFoundError, PermissionDeniedError
 from app.models.case import Case, CaseStatus
 from app.models.evidence import Evidence, EvidenceStatus, EvidenceTransfer
 from app.models.user import User
+from app.schemas.case import TimelineEvent
+from app.schemas.common import Page
 from app.schemas.evidence import (
     EvidenceCreate,
     EvidenceRead,
@@ -238,3 +240,28 @@ def verify_evidence(
     # but the prompt says: "verify the current user can access the document", which `get_case_for_user` covers since documents are tied to cases.
     return verify_integrity(db, storage=storage, evidence=evidence, actor=user)
 
+
+@router.get(
+    "/{evidence_id}/timeline",
+    response_model=Page[TimelineEvent],
+    summary="Get evidence timeline",
+)
+def get_timeline(
+    evidence_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+    limit: int = 50,
+    offset: int = 0,
+) -> Any:
+    # get_evidence handles auth
+    ev = get_evidence(evidence_id, db, user)
+    
+    from app.services.case_service import get_evidence_timeline
+    events, total = get_evidence_timeline(db, evidence_id, limit, offset)
+    
+    return {
+        "items": events,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }

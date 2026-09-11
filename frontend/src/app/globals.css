@@ -4,45 +4,48 @@
 
 /*
   NyayaVault design tokens.
-
-  A deep slate ground with a brass accent — the register of a records office
-  rather than a consumer app. Every colour is declared once here; components
-  reference semantic names (surface, ink, brand) and never raw hex values.
+  Government-grade UI/UX redesign.
 */
 
 :root {
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
-  /* light — used for print and high-contrast environments */
-  --bg: 210 25% 97%;
-  --surface: 0 0% 100%;
-  --elevated: 210 30% 99%;
-  --line: 214 20% 88%;
-  --ink: 215 32% 14%;
-  --muted: 215 14% 42%;
-  --faint: 215 12% 60%;
-  --brand: 34 58% 42%;
-  --brand-ink: 34 62% 32%;
-  --ok: 152 52% 32%;
-  --warn: 32 88% 42%;
-  --danger: 0 62% 46%;
-  --info: 212 72% 44%;
+  /* Government digital portal theme - Light and institutional */
+  --bg: 210 20% 98%; /* Very light grey */
+  --surface: 0 0% 100%; /* White */
+  --elevated: 0 0% 100%; /* White */
+  --line: 220 13% 91%; /* Subtle border */
+  --ink: 222 47% 11%; /* Deep navy text */
+  --muted: 215 16% 47%; /* Muted text */
+  --faint: 215 16% 65%; /* Faint text */
+  
+  --brand: 222 47% 11%; /* Deep navy blue (Primary) */
+  --brand-ink: 0 0% 100%; /* White text on primary */
+  
+  --secondary: 199 50% 40%; /* Government-style blue / muted teal */
+  
+  --ok: 152 40% 40%; /* Muted green */
+  --warn: 35 60% 45%; /* Muted amber */
+  --danger: 350 50% 45%; /* Muted red */
+  --info: 199 50% 40%; /* Muted teal */
 }
 
+/* Force light mode for the institutional look, ignore dark mode preference for the prototype */
 .dark {
-  --bg: 215 32% 8%;
-  --surface: 216 30% 11%;
-  --elevated: 216 28% 14%;
-  --line: 215 22% 20%;
-  --ink: 210 32% 95%;
-  --muted: 214 14% 68%;
-  --faint: 215 12% 48%;
-  --brand: 36 62% 60%;
-  --brand-ink: 36 70% 72%;
-  --ok: 152 48% 52%;
-  --warn: 36 88% 60%;
-  --danger: 358 68% 62%;
-  --info: 209 78% 62%;
+  --bg: 210 20% 98%;
+  --surface: 0 0% 100%;
+  --elevated: 0 0% 100%;
+  --line: 220 13% 91%;
+  --ink: 222 47% 11%;
+  --muted: 215 16% 47%;
+  --faint: 215 16% 65%;
+  --brand: 222 47% 11%;
+  --brand-ink: 0 0% 100%;
+  --secondary: 199 50% 40%;
+  --ok: 152 40% 40%;
+  --warn: 35 60% 45%;
+  --danger: 350 50% 45%;
+  --info: 199 50% 40%;
 }
 
 * {
@@ -50,7 +53,7 @@
 }
 
 html {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
@@ -61,11 +64,9 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* A subtle authority gradient behind the whole application shell. */
+/* Removed the glowing radial-gradient background for a solid institutional feel */
 .app-ground {
-  background-image:
-    radial-gradient(60rem 40rem at 12% -10%, hsl(var(--brand) / 0.07), transparent 60%),
-    radial-gradient(50rem 34rem at 100% 0%, hsl(var(--info) / 0.06), transparent 55%);
+  background-color: hsl(var(--bg));
 }
 
 :focus-visible {
@@ -93,19 +94,23 @@ body {
   font-size: 0.75rem;
   letter-spacing: 0.01em;
   word-break: break-all;
+  background-color: hsl(var(--bg));
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  border: 1px solid hsl(var(--line));
 }
 
 .skeleton {
   position: relative;
   overflow: hidden;
-  background: hsl(var(--elevated));
+  background: hsl(var(--line));
 }
 .skeleton::after {
   content: "";
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, hsl(var(--line) / 0.6), transparent);
+  background: linear-gradient(90deg, transparent, hsl(var(--surface) / 0.6), transparent);
   animation: shimmer 1.5s infinite;
 }
 @keyframes shimmer {

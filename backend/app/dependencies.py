@@ -23,7 +23,9 @@ from app.database import get_db
 from app.errors import AuthenticationError, PermissionDeniedError
 from app.models.role import RoleName
 from app.models.user import User
-from app.security import decode_access_token
+from app.security import decode_access_token, decode_court_token
+from app.models.court_access import CourtAccessGrant, CourtAccessStatus
+from datetime import datetime, timezone
 from app.storage import ObjectStorage, get_storage
 
 # auto_error=False so a missing header raises our own JSON error shape rather
@@ -79,3 +81,40 @@ class RequireRoles:
 
 
 require_admin = RequireRoles(RoleName.ADMIN, action="manage users")
+
+
+def get_court_access_grant(
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+    db: DbSession,
+) -> CourtAccessGrant:
+    if credentials is None or not credentials.credentials:
+        raise AuthenticationError("Authentication required.")
+
+    claims = decode_court_token(credentials.credentials)
+    if claims is None:
+        raise AuthenticationError("Invalid or expired court token.")
+
+    try:
+        grant_id = uuid.UUID(str(claims.get("sub")))
+        case_id = uuid.UUID(str(claims.get("case_id")))
+    except (ValueError, TypeError):
+        raise AuthenticationError("Invalid token format.") from None
+
+    grant = db.get(CourtAccessGrant, grant_id)
+    if grant is None:
+        raise AuthenticationError("Invalid court grant.")
+    
+    if grant.status != CourtAccessStatus.REDEEMED:
+        raise AuthenticationError("Court grant is no longer active.")
+        
+    now = datetime.now(timezone.utc)
+    if grant.session_expires_at is None or grant.session_expires_at < now:
+        raise AuthenticationError("Court session has expired.")
+        
+    if str(grant.case_id) != str(case_id):
+        raise AuthenticationError("Court grant scope mismatch.")
+        
+    return grant
+
+CourtGrant = Annotated[CourtAccessGrant, Depends(get_court_access_grant)]

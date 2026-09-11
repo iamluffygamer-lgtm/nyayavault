@@ -118,6 +118,10 @@ async def upload_document(
 
     version_id = document.latest_version().id
     background_tasks.add_task(extraction_service.extract_text_task, version_id)
+    
+    from app.services.blockchain_service import anchor_background_task
+    from app.database import get_db
+    background_tasks.add_task(anchor_background_task, get_db, version_id)
 
     return DocumentRead.model_validate(document)
 
@@ -165,6 +169,10 @@ async def upload_version(
         inspected.close()
 
     background_tasks.add_task(extraction_service.extract_text_task, version.id)
+    
+    from app.services.blockchain_service import anchor_background_task
+    from app.database import get_db
+    background_tasks.add_task(anchor_background_task, get_db, version.id)
 
     return DocumentVersionRead.model_validate(version)
 
@@ -312,3 +320,146 @@ def verify_document(
         db, storage=storage, document=document, actor=user, version_number=version
     )
     return IntegrityReport(**report)
+
+@router.get(
+    "/documents/{document_id}/versions/{version_number}/anchor",
+    summary="Get anchor status",
+)
+def get_anchor_status(
+    document_id: uuid.UUID,
+    version_number: int,
+    db: DbSession,
+    user: CurrentUser,
+):
+    from app.schemas.blockchain import AnchorStatusRead
+    from app.errors import NotFoundError
+    
+    document = get_document(document_id, db, user)
+    # The document endpoint currently returns DocumentRead which is Pydantic.
+    # We need the ORM object to get versions. Wait, get_document from document_service!
+    from app.services.document_service import get_document as svc_get_document, get_version
+    doc_orm = svc_get_document(db, document_id)
+    # Re-check auth just in case (the svc method does not check auth, the router one does, but we used the router one above)
+    version = get_version(db, doc_orm, version_number)
+    if not version.blockchain_anchor:
+        raise NotFoundError("No anchor found for this version.")
+        
+    return AnchorStatusRead(
+        status=version.blockchain_anchor.status,
+        tx_hash=version.blockchain_anchor.tx_hash,
+        block_number=version.blockchain_anchor.block_number,
+        error_message=version.blockchain_anchor.error_message
+    )
+
+
+@router.get(
+    "/documents/{document_id}/versions/{version_number}/verify-chain",
+    summary="Three-way verification against blockchain",
+)
+def verify_chain(
+    document_id: uuid.UUID,
+    version_number: int,
+    db: DbSession,
+    user: CurrentUser,
+    storage: Storage,
+):
+    from app.schemas.blockchain import ChainVerificationResult
+    from app.services.document_service import get_document as svc_get_document, get_version, build_object_key
+    from app.services.blockchain_service import verify_on_chain
+    from app.errors import NotFoundError
+    
+    # auth via router's get_document
+    get_document(document_id, db, user)
+    
+    doc = svc_get_document(db, document_id)
+    version = get_version(db, doc, version_number)
+    
+    stored_hash = version.sha256_hash
+    
+    # Recompute hash
+    object_key = version.object_key
+    
+    import hashlib
+    hasher = hashlib.sha256()
+    stream = storage.stream(object_key)
+    for chunk in stream:
+        hasher.update(chunk)
+    computed_hash = hasher.hexdigest()
+    
+    # Check chain
+    on_chain_record = verify_on_chain(stored_hash)
+    
+    anchor = version.blockchain_anchor
+    
+    if computed_hash != stored_hash:
+        status = "MISMATCH"
+        detail = "Object storage has been tampered with!"
+    elif not anchor or anchor.status == "PENDING":
+        status = "PENDING"
+        detail = "Anchor is still pending."
+    elif anchor.status == "FAILED":
+        status = "UNAVAILABLE"
+        detail = "Anchor failed, no chain record."
+    else:
+        if not on_chain_record:
+            status = "MISMATCH"
+            detail = "Hash not found on chain despite success status!"
+        else:
+            status = "VERIFIED"
+            detail = "Hash matches DB and Blockchain perfectly."
+            
+    return ChainVerificationResult(
+        status=status,
+        stored_hash=stored_hash,
+        computed_hash=computed_hash,
+        on_chain_hash=stored_hash if on_chain_record else None,
+        tx_hash=anchor.tx_hash if anchor else None,
+        block_number=anchor.block_number if anchor else None,
+        detail=detail
+    )
+
+@router.post(
+    "/documents/{document_id}/versions/{version_number}/demo-tamper",
+    summary="[DEMO] Tamper with a document in storage",
+    description="Duplicates the object and overwrites it with corrupt data to test integrity verification.",
+    status_code=200,
+)
+def demo_tamper(
+    document_id: uuid.UUID,
+    version_number: int,
+    db: DbSession,
+    user: CurrentUser,
+    storage: Storage,
+):
+    from app.config import get_settings
+    from app.errors import NotFoundError, PermissionDeniedError
+    from app.services.document_service import get_document as svc_get_document, get_version
+    import io
+    
+    settings = get_settings()
+    if not settings.allow_demo_tamper:
+        raise NotFoundError("Not Found")
+        
+    if user.role.name not in ["ADMIN", "INVESTIGATOR"]:
+        raise PermissionDeniedError("Not authorized to use demo mode.")
+        
+    doc = svc_get_document(db, document_id)
+    version = get_version(db, doc, version_number)
+    
+    # Read the existing object
+    try:
+        stream = storage.stream(version.object_key)
+        original_bytes = b"".join(list(stream))
+    except Exception as e:
+        raise NotFoundError(f"Could not read original object: {e}")
+        
+    tampered_bytes = original_bytes + b"\n\n[TAMPERED BY DEMO AT " + str(version_number).encode() + b"]"
+    
+    demo_key = f"demo-tamper/{version.object_key}"
+    
+    storage.put(demo_key, io.BytesIO(tampered_bytes), len(tampered_bytes), version.mime_type)
+    
+    version.object_key = demo_key
+    db.commit()
+    
+    return {"status": "TAMPERED", "new_key": demo_key}

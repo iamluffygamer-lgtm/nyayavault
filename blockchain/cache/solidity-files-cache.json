@@ -1,0 +1,41 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "/blockchain/contracts/DocumentRegistry.sol": {
+      "lastModificationDate": 1789055023430,
+      "contentHash": "7e400b7746663b0cb6b34d0cee7117c7",
+      "sourceName": "contracts/DocumentRegistry.sol",
+      "solcConfig": {
+        "version": "0.8.27",
+        "settings": {
+          "evmVersion": "paris",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.27"
+      ],
+      "artifacts": [
+        "DocumentRegistry"
+      ]
+    }
+  }
+}

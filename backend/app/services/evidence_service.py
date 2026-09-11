@@ -144,6 +144,11 @@ def update_status(db: Session, evidence: Evidence, new_status: EvidenceStatus, a
 def initiate_transfer(db: Session, evidence: Evidence, create: EvidenceTransferCreate, actor: User) -> EvidenceTransfer:
     if evidence.status == EvidenceStatus.ARCHIVED:
         raise PermissionDeniedError("Archived evidence cannot be transferred.")
+    
+    case = db.get(Case, evidence.case_id)
+    if case and case.status == CaseStatus.UNDER_TRIAL:
+        raise PermissionDeniedError("Evidence cannot be transferred while the case is under trial.")
+        
     if evidence.current_custodian != actor.id:
         raise PermissionDeniedError("Only the current custodian can initiate a transfer.")
     if actor.id == create.to_user_id:

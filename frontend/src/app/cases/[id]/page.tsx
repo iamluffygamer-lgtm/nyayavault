@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, FileText, Hash, ShieldCheck, Upload, Users } from "lucide-react";
+import { ArrowLeft, Lock, Key, FileText, Hash, ShieldCheck, Upload, Users } from "lucide-react";
 
-import { AuditTimeline } from "@/components/audit/audit-timeline";
+import { CaseTimeline, type TimelineEvent } from "@/components/cases/case-timeline";
 import { CaseStatusBadge } from "@/components/cases/case-status-badge";
 import { DocumentUpload } from "@/components/documents/document-upload";
 import { EvidenceList } from "@/components/evidence/evidence-list";
+import { CourtAccessModal } from "@/components/cases/court-access-modal";
 import { AppShell } from "@/components/layout/app-shell";
 import {
   Alert,
@@ -25,7 +26,7 @@ import {
   Td,
   Th,
 } from "@/components/ui";
-import { api } from "@/lib/api";
+import { api, request } from "@/lib/api";
 import { formatBytes, formatDate, relativeTime, shortHash, titleCase } from "@/lib/utils";
 import type {
   AuditEvent,
@@ -49,7 +50,7 @@ export default function CaseDetailPage() {
 
   const [detail, setDetail] = useState<CaseDetail | null>(null);
   const [documents, setDocuments] = useState<DocumentListItem[]>([]);
-  const [events, setEvents] = useState<AuditEvent[]>([]);
+  const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [members, setMembers] = useState<CaseAssignment[]>([]);
   const [tab, setTab] = useState<"documents" | "evidence" | "activity" | "members">("documents");
   const [loading, setLoading] = useState(true);
@@ -64,7 +65,7 @@ export default function CaseDetailPage() {
       const [caseDetail, docs, audit, assigned] = await Promise.all([
         api.getCase(caseId),
         api.listDocuments(caseId),
-        api.caseAudit(caseId, 40),
+        api.getCaseTimeline(caseId, 50),
         api.listCaseMembers(caseId).catch(() => [] as CaseAssignment[]),
       ]);
       setDetail(caseDetail);
@@ -102,7 +103,7 @@ export default function CaseDetailPage() {
         <Skeleton className="h-6 w-64" />
         <Skeleton className="mt-3 h-24 w-full" />
         <Skeleton className="mt-4 h-72 w-full" />
-      </AppShell>
+    </AppShell>
     );
   }
 
@@ -116,11 +117,28 @@ export default function CaseDetailPage() {
           {error ?? "This case is not available."} If you believe you should have access,
           ask the case owner to assign you.
         </Alert>
-      </AppShell>
+    </AppShell>
     );
   }
 
   const canManage = detail.access_level === "MANAGE";
+
+  const [courtModalOpen, setCourtModalOpen] = useState(false);
+  const [isLocking, setIsLocking] = useState(false);
+
+  async function handleLockForCourt() {
+    if (!confirm("Are you sure you want to lock this case for court? No further evidence can be transferred or documents added.")) return;
+    setIsLocking(true);
+    try {
+      await request(`/cases/${detail?.id}/lock-for-court`, { method: "POST" });
+      load();
+    } catch (e: any) {
+      alert(e.message || "Failed to lock case.");
+    } finally {
+      setIsLocking(false);
+    }
+  }
+
 
   return (
     <AppShell>
@@ -184,14 +202,44 @@ export default function CaseDetailPage() {
                     </option>
                   ))}
                 </Select>
+
                 {detail.status === "ARCHIVED" && (
                   <p className="mt-1 text-[11px] text-faint">Archived cases are read-only.</p>
                 )}
+
               </div>
             )}
+
+
           </div>
         </CardBody>
       </Card>
+
+
+      {canManage && (detail.status === "SUBMITTED" || detail.status === "UNDER_TRIAL") && (
+        <Card className="mb-4 border-brand bg-brand/5">
+          <CardBody className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-brand">Court Portal Actions</h3>
+              <p className="text-xs text-muted mt-1">This case is currently {detail.status}. Use the actions here to lock the case and generate an access code for the court.</p>
+            </div>
+            <div className="flex gap-3">
+              {detail.status === "SUBMITTED" && (
+                <Button variant="outline" className="border-brand text-brand hover:bg-brand/10" onClick={handleLockForCourt} loading={isLocking}>
+                  <Lock className="mr-2 h-4 w-4" />
+                  Lock & Submit for Court
+                </Button>
+              )}
+              {detail.status === "UNDER_TRIAL" && (
+                <Button variant="primary" onClick={() => setCourtModalOpen(true)}>
+                  <Key className="mr-2 h-4 w-4" />
+                  Generate Court Access Code
+                </Button>
+              )}
+            </div>
+          </CardBody>
+        </Card>
+      )}
 
       {/* ------------------------------------------------------------- tabs */}
       <div className="mb-4 flex gap-1 border-b border-line">
@@ -318,7 +366,7 @@ export default function CaseDetailPage() {
               </p>
             </div>
           </CardHeader>
-          <AuditTimeline events={events} />
+          <CaseTimeline events={events} />
         </Card>
       )}
 
@@ -371,6 +419,7 @@ export default function CaseDetailPage() {
           )}
         </Card>
       )}
+      {detail && <CourtAccessModal open={courtModalOpen} onClose={() => setCourtModalOpen(false)} caseId={detail.id} />}
     </AppShell>
   );
 }

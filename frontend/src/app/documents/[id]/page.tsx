@@ -7,6 +7,7 @@ import { ArrowLeft, Download, FileText, ShieldCheck, Upload } from "lucide-react
 
 import { AppShell } from "@/components/layout/app-shell";
 import { IntegrityBadge, type IntegrityState } from "@/components/integrity-badge";
+import { AnchorStatusBadge } from "@/components/blockchain/anchor-status-badge";
 import {
   Alert,
   Badge,
@@ -157,6 +158,7 @@ export default function DocumentDetailPage() {
                 <Badge tone="neutral">{titleCase(document.document_type)}</Badge>
                 <Badge tone="brand">v{document.current_version} current</Badge>
                 <IntegrityBadge state={state} />
+                <AnchorStatusBadge documentId={documentId} versionNumber={document.current_version} />
               </div>
               <h1 className="mt-2 flex items-center gap-2 text-lg font-semibold tracking-tight">
                 <FileText className="h-4 w-4 text-brand" />
@@ -186,10 +188,12 @@ export default function DocumentDetailPage() {
             </div>
 
             <div className="flex gap-2">
-              <Button variant="secondary" size="sm" loading={state === "checking"} onClick={verify}>
-                <ShieldCheck className="h-4 w-4" />
-                Verify integrity
-              </Button>
+              <Link href={`/documents/${documentId}/integrity`}>
+                <Button variant="secondary" size="sm">
+                  <ShieldCheck className="h-4 w-4" />
+                  Verify Integrity
+                </Button>
+              </Link>
               {current && (
                 <>
                   <Button
@@ -281,6 +285,9 @@ export default function DocumentDetailPage() {
                     <Badge tone={version.version_number === document.current_version ? "brand" : "neutral"}>
                       v{version.version_number}
                     </Badge>
+                    <div className="mt-1">
+                      <AnchorStatusBadge documentId={documentId} versionNumber={version.version_number} />
+                    </div>
                   </Td>
                   <Td className="max-w-[12rem] truncate text-xs">{version.original_filename}</Td>
                   <Td>

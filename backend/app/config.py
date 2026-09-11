@@ -68,6 +68,13 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------- upload policy
     max_upload_bytes: int = 52_428_800  # 50 MiB
 
+    # ------------------------------------------------------------- demo features
+    allow_demo_tamper: bool = False
+
+    # ---------------------------------------------------------------- blockchain
+    blockchain_rpc_url: str = "http://hardhat-node:8545"
+    blockchain_contract_address: str = "" 
+
     # ------------------------------------------------------------------ seeding
     seed_admin_username: str = "admin"
     seed_admin_email: str = "admin@nyayavault.local"

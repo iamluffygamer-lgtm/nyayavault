@@ -224,3 +224,116 @@ def case_statistics(db: Session, *, user: User) -> dict[str, int]:
         "closed_cases": closed,
         "total_documents": int(documents),
     }
+
+
+def get_case_timeline(db: Session, case_id: uuid.UUID, limit: int = 50, offset: int = 0) -> tuple[list[dict], int]:
+    from app.models.audit import AuditEvent, AuditAction
+    from app.models.user import User
+
+    query = db.query(AuditEvent).filter(AuditEvent.case_id == case_id)
+    total = query.count()
+    
+    events = query.order_by(AuditEvent.timestamp.desc()).offset(offset).limit(limit).all()
+    
+    timeline = []
+    for e in events:
+        actor_name = e.actor.full_name or e.actor.username if e.actor else "System"
+        
+        summary = f"{actor_name} performed {e.action.lower()}"
+        icon_hint = "activity"
+        
+        # Determine summary and icon based on action
+        if e.action == AuditAction.CASE_CREATED:
+            summary = f"{actor_name} created the case"
+            icon_hint = "case"
+        elif e.action == AuditAction.CASE_STATUS_CHANGED:
+            new_status = e.event_metadata.get("new_status", "unknown")
+            summary = f"{actor_name} changed case status to {new_status}"
+            icon_hint = "case"
+        elif e.action == AuditAction.DOCUMENT_UPLOADED:
+            summary = f"{actor_name} uploaded a new document"
+            icon_hint = "document"
+        elif e.action == AuditAction.DOCUMENT_VERSION_CREATED:
+            summary = f"{actor_name} uploaded a new document version"
+            icon_hint = "document"
+        elif e.action == AuditAction.DOCUMENT_INTEGRITY_FAILED:
+            summary = f"Integrity mismatch detected on document"
+            icon_hint = "alert"
+        elif e.action == AuditAction.ANCHOR_ATTEMPTED:
+            status = e.event_metadata.get("status", "")
+            if status == "SUCCESS":
+                summary = f"Blockchain anchor confirmed for document"
+                icon_hint = "blockchain"
+            elif status == "FAILURE":
+                summary = f"Blockchain anchor failed for document"
+                icon_hint = "alert"
+            else:
+                summary = f"Blockchain anchor queued"
+                icon_hint = "blockchain"
+        elif "EVIDENCE" in e.action:
+            if "TRANSFER" in e.action:
+                summary = f"{actor_name} updated evidence custody"
+                icon_hint = "transfer"
+            else:
+                summary = f"{actor_name} updated evidence"
+                icon_hint = "evidence"
+                
+        timeline.append({
+            "id": str(e.id),
+            "timestamp": e.timestamp,
+            "actor_name": actor_name,
+            "action": e.action,
+            "summary": summary,
+            "icon_hint": icon_hint,
+        })
+        
+    return timeline, total
+
+def get_evidence_timeline(db: Session, evidence_id: uuid.UUID, limit: int = 50, offset: int = 0) -> tuple[list[dict], int]:
+    from app.models.audit import AuditEvent, AuditAction
+    from app.models.user import User
+
+    query = db.query(AuditEvent).filter(AuditEvent.entity_type == "evidence", AuditEvent.entity_id == str(evidence_id))
+    total = query.count()
+    
+    events = query.order_by(AuditEvent.timestamp.desc()).offset(offset).limit(limit).all()
+    
+    timeline = []
+    for e in events:
+        actor_name = e.actor.full_name or e.actor.username if e.actor else "System"
+        
+        summary = f"{actor_name} performed {e.action.lower()}"
+        icon_hint = "evidence"
+        
+        if e.action == AuditAction.EVIDENCE_CREATED:
+            summary = f"{actor_name} registered evidence"
+        elif e.action == AuditAction.EVIDENCE_SEALED:
+            summary = f"{actor_name} sealed evidence"
+        elif e.action == AuditAction.EVIDENCE_TRANSFER_CREATED:
+            summary = f"{actor_name} initiated custody transfer"
+            icon_hint = "transfer"
+        elif e.action == AuditAction.EVIDENCE_TRANSFER_ACCEPTED:
+            summary = f"{actor_name} accepted custody"
+            icon_hint = "transfer"
+        elif e.action == AuditAction.EVIDENCE_TRANSFER_REJECTED:
+            summary = f"{actor_name} rejected custody"
+            icon_hint = "alert"
+        elif e.action == AuditAction.EVIDENCE_ANALYSIS_STARTED:
+            summary = f"{actor_name} started forensic analysis"
+        elif e.action == AuditAction.EVIDENCE_ANALYSIS_COMPLETED:
+            summary = f"{actor_name} completed forensic analysis"
+        elif e.action == AuditAction.EVIDENCE_COURT_SUBMITTED:
+            summary = f"{actor_name} submitted evidence to court"
+        elif e.action == AuditAction.EVIDENCE_ARCHIVED:
+            summary = f"{actor_name} archived evidence"
+            
+        timeline.append({
+            "id": str(e.id),
+            "timestamp": e.timestamp,
+            "actor_name": actor_name,
+            "action": e.action,
+            "summary": summary,
+            "icon_hint": icon_hint,
+        })
+        
+    return timeline, total

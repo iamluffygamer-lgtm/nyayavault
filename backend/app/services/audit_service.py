@@ -77,6 +77,7 @@ def canonical_timestamp(value: datetime) -> str:
 def compute_event_hash(
     *,
     actor_id: uuid.UUID | None,
+    court_grant_id: uuid.UUID | None = None,
     case_id: uuid.UUID | None,
     entity_type: str,
     entity_id: str | None,
@@ -87,19 +88,21 @@ def compute_event_hash(
     previous_event_hash: str,
 ) -> str:
     """SHA-256 over the canonical representation of one event."""
-    pre_image = canonical_json(
-        {
-            "actor_id": str(actor_id) if actor_id else None,
-            "case_id": str(case_id) if case_id else None,
-            "entity_type": entity_type,
-            "entity_id": entity_id,
-            "action": str(action),
-            "result": str(result),
-            "timestamp": canonical_timestamp(timestamp),
-            "metadata": metadata,
-            "previous_event_hash": previous_event_hash,
-        }
-    )
+    payload = {
+        "actor_id": str(actor_id) if actor_id else None,
+        "case_id": str(case_id) if case_id else None,
+        "entity_type": entity_type,
+        "entity_id": entity_id,
+        "action": str(action),
+        "result": str(result),
+        "timestamp": canonical_timestamp(timestamp),
+        "metadata": metadata,
+        "previous_event_hash": previous_event_hash,
+    }
+    if court_grant_id is not None:
+        payload["court_grant_id"] = str(court_grant_id)
+        
+    pre_image = canonical_json(payload)
     return hashlib.sha256(pre_image.encode("utf-8")).hexdigest()
 
 
@@ -125,6 +128,7 @@ def record_event(
     entity_type: str,
     entity_id: str | uuid.UUID | None = None,
     actor_id: uuid.UUID | None = None,
+    court_grant_id: uuid.UUID | None = None,
     case_id: uuid.UUID | None = None,
     result: AuditResult = AuditResult.SUCCESS,
     metadata: dict[str, Any] | None = None,
@@ -148,6 +152,7 @@ def record_event(
 
     event_hash = compute_event_hash(
         actor_id=actor_id,
+        court_grant_id=court_grant_id,
         case_id=case_id,
         entity_type=entity_type,
         entity_id=entity_ref,
@@ -160,6 +165,7 @@ def record_event(
 
     event = AuditEvent(
         actor_id=actor_id,
+        court_grant_id=court_grant_id,
         case_id=case_id,
         entity_type=entity_type,
         entity_id=entity_ref,
@@ -248,6 +254,7 @@ def verify_chain(db: Session) -> dict[str, Any]:
         event = successors[0]
         recomputed = compute_event_hash(
             actor_id=event.actor_id,
+            court_grant_id=event.court_grant_id,
             case_id=event.case_id,
             entity_type=event.entity_type,
             entity_id=event.entity_id,

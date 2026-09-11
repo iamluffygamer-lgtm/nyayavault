@@ -1,15 +1,5 @@
 "use client";
 
-/**
- * shadcn/ui-style primitives.
- *
- * Written by hand rather than pulled in with the shadcn CLI so the repository
- * has no generated-code step and installs from `npm install` alone. The API
- * (variant/size props on top of Tailwind classes, composed with `cn`) matches
- * shadcn conventions, so components can be swapped for the generated ones later
- * without touching call sites.
- */
-
 import { cva, type VariantProps } from "class-variance-authority";
 import * as React from "react";
 
@@ -18,15 +8,15 @@ import { cn } from "@/lib/utils";
 // -------------------------------------------------------------------- Button
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm text-sm font-semibold transition-colors disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
-        primary: "bg-brand text-bg hover:bg-brand-ink shadow-sm",
-        secondary: "bg-elevated text-ink border border-line hover:bg-line/40",
+        primary: "bg-brand text-white hover:bg-brand/90 shadow-sm border border-transparent",
+        secondary: "bg-surface text-ink border border-line hover:bg-line/40 shadow-sm",
         ghost: "text-muted hover:bg-elevated hover:text-ink",
-        danger: "bg-danger text-white hover:opacity-90",
-        outline: "border border-line text-ink hover:bg-elevated",
+        danger: "bg-danger text-white hover:bg-danger/90 shadow-sm",
+        outline: "border border-line bg-surface text-ink hover:bg-elevated shadow-sm",
       },
       size: {
         sm: "h-8 px-3 text-xs",
@@ -70,41 +60,41 @@ Button.displayName = "Button";
 export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("rounded-xl border border-line bg-surface shadow-sm", className)}
+      className={cn("rounded-md border border-line bg-surface shadow-sm", className)}
       {...props}
     />
   );
 }
 
 export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("border-b border-line px-5 py-4", className)} {...props} />;
+  return <div className={cn("border-b border-line px-5 py-4 bg-elevated/30", className)} {...props} />;
 }
 
 export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
-  return <h3 className={cn("text-sm font-semibold tracking-tight", className)} {...props} />;
+  return <h3 className={cn("text-base font-semibold tracking-tight text-ink", className)} {...props} />;
 }
 
 export function CardDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn("mt-0.5 text-xs text-muted", className)} {...props} />;
+  return <p className={cn("mt-1 text-xs text-muted", className)} {...props} />;
 }
 
 export function CardBody({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("px-5 py-4", className)} {...props} />;
+  return <div className={cn("px-5 py-5", className)} {...props} />;
 }
 
 // --------------------------------------------------------------------- Badge
 
 const badgeVariants = cva(
-  "inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-medium leading-5",
+  "inline-flex items-center gap-1.5 rounded-sm border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider",
   {
     variants: {
       tone: {
-        neutral: "border-line bg-elevated text-muted",
-        brand: "border-brand/30 bg-brand/10 text-brand",
-        ok: "border-ok/30 bg-ok/10 text-ok",
-        warn: "border-warn/30 bg-warn/10 text-warn",
-        danger: "border-danger/30 bg-danger/10 text-danger",
-        info: "border-info/30 bg-info/10 text-info",
+        neutral: "border-line bg-surface text-muted",
+        brand: "border-brand bg-brand text-white",
+        ok: "border-ok bg-ok text-white",
+        warn: "border-warn bg-warn text-white",
+        danger: "border-danger bg-danger text-white",
+        info: "border-info bg-info text-white",
       },
     },
     defaultVariants: { tone: "neutral" },
@@ -126,7 +116,7 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
     <input
       ref={ref}
       className={cn(
-        "h-9 w-full rounded-lg border border-line bg-elevated px-3 text-sm text-ink",
+        "h-9 w-full rounded-sm border border-line bg-surface px-3 text-sm text-ink shadow-sm",
         "placeholder:text-faint focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand",
         "disabled:cursor-not-allowed disabled:opacity-60",
         className
@@ -144,7 +134,7 @@ export const Textarea = React.forwardRef<
   <textarea
     ref={ref}
     className={cn(
-      "w-full rounded-lg border border-line bg-elevated px-3 py-2 text-sm text-ink",
+      "w-full rounded-sm border border-line bg-surface px-3 py-2 text-sm text-ink shadow-sm",
       "placeholder:text-faint focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand",
       className
     )}
@@ -160,7 +150,7 @@ export const Select = React.forwardRef<
   <select
     ref={ref}
     className={cn(
-      "h-9 w-full rounded-lg border border-line bg-elevated px-3 text-sm text-ink",
+      "h-9 w-full rounded-sm border border-line bg-surface px-3 text-sm text-ink shadow-sm",
       "focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand",
       className
     )}
@@ -174,7 +164,7 @@ Select.displayName = "Select";
 export function Label({ className, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) {
   return (
     <label
-      className={cn("mb-1.5 block text-xs font-medium text-muted", className)}
+      className={cn("mb-1.5 block text-xs font-semibold text-ink uppercase tracking-wide", className)}
       {...props}
     />
   );
@@ -184,7 +174,7 @@ export function Label({ className, ...props }: React.LabelHTMLAttributes<HTMLLab
 
 export function Table({ className, ...props }: React.TableHTMLAttributes<HTMLTableElement>) {
   return (
-    <div className="w-full overflow-x-auto">
+    <div className="w-full overflow-x-auto rounded-md border border-line bg-surface shadow-sm">
       <table className={cn("w-full border-collapse text-sm", className)} {...props} />
     </div>
   );
@@ -194,7 +184,7 @@ export function Th({ className, ...props }: React.ThHTMLAttributes<HTMLTableCell
   return (
     <th
       className={cn(
-        "border-b border-line px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-faint",
+        "border-b border-line bg-bg px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted",
         className
       )}
       {...props}
@@ -203,7 +193,7 @@ export function Th({ className, ...props }: React.ThHTMLAttributes<HTMLTableCell
 }
 
 export function Td({ className, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) {
-  return <td className={cn("border-b border-line/60 px-4 py-3 align-middle", className)} {...props} />;
+  return <td className={cn("border-b border-line px-4 py-3 align-middle bg-surface", className)} {...props} />;
 }
 
 // -------------------------------------------------------------------- Dialog
@@ -241,7 +231,7 @@ export function Dialog({
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:p-8">
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+        className="fixed inset-0 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
         aria-hidden
       />
@@ -249,15 +239,15 @@ export function Dialog({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative z-10 w-full max-w-lg animate-fade-up rounded-xl border border-line bg-surface shadow-2xl"
+        className="relative z-10 w-full max-w-lg animate-fade-up rounded-sm border border-line bg-surface shadow-2xl mt-12"
       >
-        <div className="border-b border-line px-5 py-4">
-          <h2 className="text-sm font-semibold">{title}</h2>
-          {description && <p className="mt-0.5 text-xs text-muted">{description}</p>}
+        <div className="border-b border-line bg-elevated/50 px-5 py-4">
+          <h2 className="text-base font-bold text-ink">{title}</h2>
+          {description && <p className="mt-1 text-xs text-muted">{description}</p>}
         </div>
-        <div className="px-5 py-4">{children}</div>
+        <div className="px-5 py-5 bg-surface">{children}</div>
         {footer && (
-          <div className="flex justify-end gap-2 border-t border-line px-5 py-3">{footer}</div>
+          <div className="flex justify-end gap-3 border-t border-line bg-elevated/30 px-5 py-4">{footer}</div>
         )}
       </div>
     </div>
@@ -274,26 +264,22 @@ export function Alert({
   children: React.ReactNode;
 }) {
   const tones = {
-    danger: "border-danger/30 bg-danger/10 text-danger",
-    warn: "border-warn/30 bg-warn/10 text-warn",
-    ok: "border-ok/30 bg-ok/10 text-ok",
-    info: "border-info/30 bg-info/10 text-info",
+    danger: "border-danger bg-danger/5 text-danger font-medium",
+    warn: "border-warn bg-warn/5 text-warn font-medium",
+    ok: "border-ok bg-ok/5 text-ok font-medium",
+    info: "border-info bg-info/5 text-info font-medium",
   } as const;
   return (
-    <div className={cn("rounded-lg border px-3 py-2 text-xs", tones[tone])} role="alert">
+    <div className={cn("rounded-sm border-l-4 border-y border-r px-4 py-3 text-sm shadow-sm", tones[tone])} role="alert">
       {children}
     </div>
   );
 }
 
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={cn("skeleton rounded-md", className)} />;
+  return <div className={cn("skeleton rounded-sm", className)} />;
 }
 
-/**
- * Empty states matter here: the brief forbids fabricated statistics, so when
- * there is no data the UI says so rather than inventing plausible rows.
- */
 export function EmptyState({
   icon,
   title,
@@ -306,11 +292,11 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
-      {icon && <div className="mb-3 text-faint">{icon}</div>}
-      <p className="text-sm font-medium text-ink">{title}</p>
-      {description && <p className="mt-1 max-w-sm text-xs text-muted">{description}</p>}
-      {action && <div className="mt-4">{action}</div>}
+    <div className="flex flex-col items-center justify-center rounded-md border border-dashed border-line bg-surface/50 px-6 py-16 text-center">
+      {icon && <div className="mb-4 text-faint">{icon}</div>}
+      <p className="text-base font-bold text-ink">{title}</p>
+      {description && <p className="mt-1.5 max-w-sm text-sm text-muted">{description}</p>}
+      {action && <div className="mt-6">{action}</div>}
     </div>
   );
 }

@@ -30,76 +30,113 @@ from app.security import PasswordPolicyError, hash_password, validate_password_p
 logger = logging.getLogger("app.seed")
 
 HIERARCHY = {
-    "name": "State Police HQ",
-    "description": "State Police Headquarters",
+    "name": "State Police Headquarters",
+    "description": "Apex state-level police command.",
     "org_type": "STATE",
     "children": [
         {
-            "name": "North Zone",
-            "description": "Northern Zone Command",
-            "org_type": "ZONE",
+            "name": "Mumbai City Commissionerate",
+            "description": "Urban policing command for Mumbai City.",
+            "org_type": "DISTRICT",
             "children": [
                 {
-                    "name": "Mumbai Range",
-                    "description": "Mumbai Range Command",
-                    "org_type": "RANGE",
+                    "name": "South Region",
+                    "description": "South Mumbai Zone",
+                    "org_type": "OTHER",
                     "children": [
                         {
-                            "name": "Mumbai District",
-                            "description": "Mumbai District HQ",
-                            "org_type": "DISTRICT",
-                            "children": [
-                                {
-                                    "name": "Colaba Police Station",
-                                    "description": "Colaba local station",
-                                    "org_type": "POLICE_STATION",
-                                    "children": []
-                                },
-                                {
-                                    "name": "Bandra Police Station",
-                                    "description": "Bandra local station",
-                                    "org_type": "POLICE_STATION",
-                                    "children": []
-                                },
-                            ]
+                            "name": "Colaba Police Station",
+                            "description": "Colaba local station",
+                            "org_type": "STATION",
+                            "children": []
+                        },
+                        {
+                            "name": "Marine Drive Police Station",
+                            "description": "Marine Drive local station",
+                            "org_type": "STATION",
+                            "children": []
+                        }
+                    ]
+                },
+                {
+                    "name": "West Region",
+                    "description": "West Mumbai Zone",
+                    "org_type": "OTHER",
+                    "children": [
+                        {
+                            "name": "Bandra Police Station",
+                            "description": "Bandra local station",
+                            "org_type": "STATION",
+                            "children": []
+                        },
+                        {
+                            "name": "Juhu Police Station",
+                            "description": "Juhu local station",
+                            "org_type": "STATION",
+                            "children": []
                         }
                     ]
                 }
             ]
         },
         {
-            "name": "Criminal Investigation Department",
+            "name": "Pune District Police",
+            "description": "Pune rural district command.",
+            "org_type": "DISTRICT",
+            "children": [
+                {
+                    "name": "Haveli Sub-Division",
+                    "description": "Haveli jurisdictional circle",
+                    "org_type": "OTHER",
+                    "children": [
+                        {
+                            "name": "Loni Kalbhor Police Station",
+                            "description": "Loni Kalbhor local station",
+                            "org_type": "STATION",
+                            "children": []
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Criminal Investigation Department (CID)",
             "description": "Primary investigating wing for serious offences.",
-            "org_type": "UNIT",
+            "org_type": "POLICE_UNIT",
+            "children": []
+        },
+        {
+            "name": "Anti-Terrorism Squad (ATS)",
+            "description": "Special operations and counter-terrorism.",
+            "org_type": "POLICE_UNIT",
             "children": []
         },
         {
             "name": "Cyber Crime Cell",
             "description": "Digital forensics and cyber-enabled crime.",
-            "org_type": "UNIT",
+            "org_type": "POLICE_UNIT",
             "children": []
         },
         {
             "name": "Forensic Science Laboratory",
-            "description": "Laboratory analysis and expert reports.",
-            "org_type": "UNIT",
+            "description": "State-level laboratory analysis and expert reports.",
+            "org_type": "FORENSIC_LAB",
             "children": []
         },
         {
             "name": "Prosecution Wing",
             "description": "Legal review, filings and court liaison.",
-            "org_type": "UNIT",
+            "org_type": "COURT",
             "children": []
         },
         {
             "name": "Internal Audit",
             "description": "Independent oversight of case and evidence handling.",
-            "org_type": "UNIT",
+            "org_type": "POLICE_UNIT",
             "children": []
         },
     ]
 }
-
 
 def seed_roles(db: Session) -> dict[str, Role]:
     # 1. Seed Permissions
@@ -164,7 +201,7 @@ def seed_departments(db: Session) -> dict[str, Department]:
             dept = Department(
                 name=name,
                 description=node.get("description"),
-                org_type=node.get("org_type", "UNIT"),
+                org_type=node.get("org_type", "POLICE_UNIT"),
                 parent_id=parent_id
             )
             db.add(dept)

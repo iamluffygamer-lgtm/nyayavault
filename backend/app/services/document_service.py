@@ -156,6 +156,15 @@ def store_version(
         db.add(version)
         document.current_version = version_number
         db.flush()
+        
+        # Spawn a BlockchainAnchor
+        from app.models.blockchain import BlockchainAnchor, AnchorStatus
+        anchor = BlockchainAnchor(
+            document_version=version,
+            anchored_hash=inspected.sha256,
+            status=AnchorStatus.PENDING
+        )
+        db.add(anchor)
 
         audit_service.record_event(
             db,

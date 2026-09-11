@@ -1,0 +1,143 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-8.3.4, pluggy-1.6.0
+rootdir: /app
+configfile: pytest.ini
+collected 1 item
+
+tests/test_security_threat_model.py F                                    [100%]
+
+=================================== FAILURES ===================================
+__________________ test_tamper_and_custody_integrity_mismatch __________________
+
+client = <starlette.testclient.TestClient object at 0xffff8c9f5eb0>
+db_session = <sqlalchemy.orm.session.Session object at 0xffff8ceab830>
+storage = <app.storage.InMemoryStorage object at 0xffff8ce36270>
+seeded = {'department': <Department Cyber Crime Cell>, 'roles': {'ADMIN': <Role ADMIN>, 'AUDITOR': <Role AUDITOR>, 'FORENSIC_OF...dmin': <User admin>, 'auditor': <User auditor>, 'forensic': <User forensic>, 'investigator': <User investigator>, ...}}
+
+    def test_tamper_and_custody_integrity_mismatch(client, db_session, storage, seeded):
+        # 3. Tamper + custody integrity together
+        owner_token = login(client, "investigator")
+        case = create_case(client, owner_token, "Tampered Case")
+    
+        import time
+        from tests.conftest import pdf_bytes
+        files = {"file": ("test.pdf", pdf_bytes(f"NyayaVault test document {time.time()}"), "application/pdf")}
+        doc_resp = client.post(f"/api/v1/cases/{case['id']}/documents", headers=auth(owner_token), files=files, data={"title": "Test Title"})
+        doc = doc_resp.json()
+        doc_id = doc["id"]
+        version_id = doc["current_version"]
+    
+        # Force anchor it synchronously since test background tasks are unreliable across db sessions
+        from app.services.blockchain_service import anchor_document_hash
+        from app.models.document import DocumentVersion
+        from app.models.blockchain import AnchorStatus
+        from sqlalchemy import select
+        import uuid
+        version = db_session.execute(select(DocumentVersion).where(DocumentVersion.document_id == uuid.UUID(doc_id), DocumentVersion.version_number == version_id)).scalar_one()
+        res = anchor_document_hash(version.sha256_hash, str(case["id"]), doc_id, version_id)
+        print("ANCHOR RESULT:", res.status, res.error)
+        if res.status == "ANCHORED":
+            version.blockchain_anchor.status = AnchorStatus.ANCHORED
+            version.blockchain_anchor.tx_hash = res.tx_hash
+            version.blockchain_anchor.block_number = res.block_number
+            db_session.commit()
+    
+        # Create evidence
+        ev_resp = client.post(
+            f"/api/v1/cases/{case['id']}/evidence",
+            headers=auth(owner_token),
+            json={
+                "title": "Suspect File",
+                "evidence_type": "DIGITAL",
+                "source_document_id": doc_id
+            }
+        )
+        assert ev_resp.status_code == 201
+        ev_id = ev_resp.json()["id"]
+    
+        # Tamper with storage directly (we use the InMemoryStorage test double)
+        # The document object key is something like "case_id/doc_id/version_id"
+        # Wait, how does the document get its object key?
+        # Let's fetch the document version object key from DB directly, or we can just iterate over all objects in `storage._objects` and tamper the only one there.
+        # Because it's InMemoryStorage!
+        assert len(storage._objects) == 1
+        object_key = list(storage._objects.keys())[0]
+        original_bytes = storage._objects[object_key]
+        storage._objects[object_key] = original_bytes + b"CORRUPTED"
+    
+        # Confirm GET /documents/{id}/verify detects it
+        verify_resp = client.get(f"/api/v1/documents/{doc_id}/verify", headers=auth(owner_token))
+        assert verify_resp.status_code == 200
+        verify_data = verify_resp.json()
+        assert verify_data["verified"] is False
+    
+        # Confirm GET /documents/{id}/versions/{version}/verify-chain detects it
+        chain_resp = client.get(f"/api/v1/documents/{doc_id}/versions/{version_id}/verify-chain", headers=auth(owner_token))
+        assert chain_resp.status_code == 200
+        chain_data = chain_resp.json()
+        assert chain_data["status"] == "MISMATCH"
+    
+        # Confirm evidence verification detects it
+        ev_verify_resp = client.get(f"/api/v1/evidence/{ev_id}/verify", headers=auth(owner_token))
+        assert ev_verify_resp.status_code == 200
+        ev_verify_data = ev_verify_resp.json()
+        assert ev_verify_data["is_intact"] is False
+>       assert "Mismatch" in ev_verify_data["details"] or not ev_verify_data["is_intact"]
+E       KeyError: 'details'
+
+tests/test_security_threat_model.py:229: KeyError
+---------------------------- Captured stdout setup -----------------------------
+{"ts": "2026-09-10T19:23:33.986455+00:00", "level": "INFO", "logger": "app.main", "message": "starting", "app": "NyayaVault", "version": "0.1.0-m0", "env": "development"}
+----------------------------- Captured stdout call -----------------------------
+{"ts": "2026-09-10T19:23:33.991858+00:00", "level": "INFO", "logger": "app.services.audit_service", "message": "audit_event", "action": "LOGIN_SUCCEEDED", "result": "SUCCESS", "entity_type": "user", "entity_id": "c2b8843b-cdcd-48be-9761-ac173bb0ad7a", "actor_id": "c2b8843b-cdcd-48be-9761-ac173bb0ad7a", "event_hash": "90f7c231c855d090783a651d9fc0be724b16e0127d9d08f3479784bc3a748c9f"}
+{"ts": "2026-09-10T19:23:33.992361+00:00", "level": "INFO", "logger": "app.main", "message": "request", "method": "POST", "path": "/api/v1/auth/login", "status": 200, "duration_ms": 5.33, "request_id": "95204e858da24ebe85241fc457b261e9", "user_id": null}
+{"ts": "2026-09-10T19:23:33.992604+00:00", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/auth/login \"HTTP/1.1 200 OK\""}
+{"ts": "2026-09-10T19:23:33.996311+00:00", "level": "INFO", "logger": "app.services.audit_service", "message": "audit_event", "action": "CASE_CREATED", "result": "SUCCESS", "entity_type": "case", "entity_id": "bbed452f-6cd3-4f75-bb2e-236a15b5c5d0", "actor_id": "c2b8843b-cdcd-48be-9761-ac173bb0ad7a", "event_hash": "6dc10546ea3fc0384102384e6ef473be5c798f89f8a057a8219329a4ab77159f"}
+{"ts": "2026-09-10T19:23:33.998798+00:00", "level": "INFO", "logger": "app.main", "message": "request", "method": "POST", "path": "/api/v1/cases", "status": 201, "duration_ms": 5.9, "request_id": "81ff435347b84d8f83b5246e3338c544", "user_id": "c2b8843b-cdcd-48be-9761-ac173bb0ad7a"}
+{"ts": "2026-09-10T19:23:33.998934+00:00", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/cases \"HTTP/1.1 201 Created\""}
+{"ts": "2026-09-10T19:23:34.006459+00:00", "level": "INFO", "logger": "app.services.audit_service", "message": "audit_event", "action": "DOCUMENT_UPLOADED", "result": "SUCCESS", "entity_type": "document_version", "entity_id": "8fc1d96a-3a90-4bcb-ac98-b47e4cca1a42", "actor_id": "c2b8843b-cdcd-48be-9761-ac173bb0ad7a", "event_hash": "66fe736d19fa3a4ac632625316c832991f374f60d021ffb928553e58827810e2"}
+{"ts": "2026-09-10T19:23:34.354340+00:00", "level": "INFO", "logger": "app.main", "message": "request", "method": "POST", "path": "/api/v1/cases/bbed452f-6cd3-4f75-bb2e-236a15b5c5d0/documents", "status": 201, "duration_ms": 355.13, "request_id": "f85c1272621b4d0e877e792fc0973b07", "user_id": "c2b8843b-cdcd-48be-9761-ac173bb0ad7a"}
+VERSION NOT FOUND: 8fc1d96a-3a90-4bcb-ac98-b47e4cca1a42
+{"ts": "2026-09-10T19:23:34.360995+00:00", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/cases/bbed452f-6cd3-4f75-bb2e-236a15b5c5d0/documents \"HTTP/1.1 201 Created\""}
+ANCHOR RESULT: ANCHORED None
+{"ts": "2026-09-10T19:23:34.384916+00:00", "level": "INFO", "logger": "app.services.audit_service", "message": "audit_event", "action": "EVIDENCE_CREATED", "result": "SUCCESS", "entity_type": "evidence", "entity_id": "7fc2d6f2-673c-4d2b-8cf7-844e4ab3cf05", "actor_id": "c2b8843b-cdcd-48be-9761-ac173bb0ad7a", "event_hash": "06220efab6253ae8e9b93feb8dc9210e33c723449efbde3730d71a4e6e57e336"}
+{"ts": "2026-09-10T19:23:34.390697+00:00", "level": "INFO", "logger": "app.main", "message": "request", "method": "POST", "path": "/api/v1/cases/bbed452f-6cd3-4f75-bb2e-236a15b5c5d0/evidence", "status": 201, "duration_ms": 12.09, "request_id": "8086ec53c403498e8e26a02c42b6bee8", "user_id": "c2b8843b-cdcd-48be-9761-ac173bb0ad7a"}
+{"ts": "2026-09-10T19:23:34.390851+00:00", "level": "INFO", "logger": "httpx", "message": "HTTP Request: POST http://testserver/api/v1/cases/bbed452f-6cd3-4f75-bb2e-236a15b5c5d0/evidence \"HTTP/1.1 201 Created\""}
+{"ts": "2026-09-10T19:23:34.393254+00:00", "level": "INFO", "logger": "app.services.audit_service", "message": "audit_event", "action": "DOCUMENT_INTEGRITY_FAILED", "result": "FAILURE", "entity_type": "document", "entity_id": "96110ca4-d333-4c43-873d-e44f8a93b6ac", "actor_id": "c2b8843b-cdcd-48be-9761-ac173bb0ad7a", "event_hash": "6f4c4de1cdb0cbccc7ae68822ffdbc4392f51ac7214a7a71d182a169c9967e96"}
+{"ts": "2026-09-10T19:23:34.393310+00:00", "level": "ERROR", "logger": "app.services.document_service", "message": "integrity_violation", "document_id": "96110ca4-d333-4c43-873d-e44f8a93b6ac", "failed": [1]}
+{"ts": "2026-09-10T19:23:34.393550+00:00", "level": "INFO", "logger": "app.main", "message": "request", "method": "GET", "path": "/api/v1/documents/96110ca4-d333-4c43-873d-e44f8a93b6ac/verify", "status": 200, "duration_ms": 2.42, "request_id": "b3e2609592724056bd281be314a85024", "user_id": "c2b8843b-cdcd-48be-9761-ac173bb0ad7a"}
+{"ts": "2026-09-10T19:23:34.393676+00:00", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/96110ca4-d333-4c43-873d-e44f8a93b6ac/verify \"HTTP/1.1 200 OK\""}
+{"ts": "2026-09-10T19:23:34.404156+00:00", "level": "INFO", "logger": "app.main", "message": "request", "method": "GET", "path": "/api/v1/documents/96110ca4-d333-4c43-873d-e44f8a93b6ac/versions/1/verify-chain", "status": 200, "duration_ms": 10.25, "request_id": "7767ca13fda0466492fd5c8655423cb7", "user_id": "c2b8843b-cdcd-48be-9761-ac173bb0ad7a"}
+{"ts": "2026-09-10T19:23:34.404323+00:00", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/documents/96110ca4-d333-4c43-873d-e44f8a93b6ac/versions/1/verify-chain \"HTTP/1.1 200 OK\""}
+{"ts": "2026-09-10T19:23:34.412642+00:00", "level": "INFO", "logger": "app.services.audit_service", "message": "audit_event", "action": "EVIDENCE_INTEGRITY_FAILED", "result": "SUCCESS", "entity_type": "evidence", "entity_id": "7fc2d6f2-673c-4d2b-8cf7-844e4ab3cf05", "actor_id": "c2b8843b-cdcd-48be-9761-ac173bb0ad7a", "event_hash": "ab7618f94a8f3c266acf3aae34754c62b9a1a1cd45465e36bc40a9ee10556a9e"}
+{"ts": "2026-09-10T19:23:34.413002+00:00", "level": "INFO", "logger": "app.main", "message": "request", "method": "GET", "path": "/api/v1/evidence/7fc2d6f2-673c-4d2b-8cf7-844e4ab3cf05/verify", "status": 200, "duration_ms": 8.41, "request_id": "ae73869730184970a43b3e07e34cd41d", "user_id": "c2b8843b-cdcd-48be-9761-ac173bb0ad7a"}
+{"ts": "2026-09-10T19:23:34.413141+00:00", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://testserver/api/v1/evidence/7fc2d6f2-673c-4d2b-8cf7-844e4ab3cf05/verify \"HTTP/1.1 200 OK\""}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.audit_service:audit_service.py:176 audit_event
+INFO     app.main:main.py:104 request
+INFO     httpx:_client.py:1025 HTTP Request: POST http://testserver/api/v1/auth/login "HTTP/1.1 200 OK"
+INFO     app.services.audit_service:audit_service.py:176 audit_event
+INFO     app.main:main.py:104 request
+INFO     httpx:_client.py:1025 HTTP Request: POST http://testserver/api/v1/cases "HTTP/1.1 201 Created"
+INFO     app.services.audit_service:audit_service.py:176 audit_event
+INFO     app.main:main.py:104 request
+INFO     httpx:_client.py:1025 HTTP Request: POST http://testserver/api/v1/cases/bbed452f-6cd3-4f75-bb2e-236a15b5c5d0/documents "HTTP/1.1 201 Created"
+INFO     app.services.audit_service:audit_service.py:176 audit_event
+INFO     app.main:main.py:104 request
+INFO     httpx:_client.py:1025 HTTP Request: POST http://testserver/api/v1/cases/bbed452f-6cd3-4f75-bb2e-236a15b5c5d0/evidence "HTTP/1.1 201 Created"
+INFO     app.services.audit_service:audit_service.py:176 audit_event
+ERROR    app.services.document_service:document_service.py:343 integrity_violation
+INFO     app.main:main.py:104 request
+INFO     httpx:_client.py:1025 HTTP Request: GET http://testserver/api/v1/documents/96110ca4-d333-4c43-873d-e44f8a93b6ac/verify "HTTP/1.1 200 OK"
+INFO     app.main:main.py:104 request
+INFO     httpx:_client.py:1025 HTTP Request: GET http://testserver/api/v1/documents/96110ca4-d333-4c43-873d-e44f8a93b6ac/versions/1/verify-chain "HTTP/1.1 200 OK"
+INFO     app.services.audit_service:audit_service.py:176 audit_event
+INFO     app.main:main.py:104 request
+INFO     httpx:_client.py:1025 HTTP Request: GET http://testserver/api/v1/evidence/7fc2d6f2-673c-4d2b-8cf7-844e4ab3cf05/verify "HTTP/1.1 200 OK"
+--------------------------- Captured stdout teardown ---------------------------
+{"ts": "2026-09-10T19:23:34.428419+00:00", "level": "INFO", "logger": "app.main", "message": "shutting_down"}
+---------------------------- Captured log teardown -----------------------------
+INFO     app.main:main.py:60 shutting_down
+=========================== short test summary info ============================
+FAILED tests/test_security_threat_model.py::test_tamper_and_custody_integrity_mismatch
+============================== 1 failed in 0.50s ===============================

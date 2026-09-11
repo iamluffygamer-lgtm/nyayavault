@@ -27,6 +27,17 @@ export type DocumentType =
   | "EVIDENCE_PHOTO"
   | "OTHER";
 
+
+export type OrgType =
+  | "NATIONAL"
+  | "STATE"
+  | "DISTRICT"
+  | "POLICE_UNIT"
+  | "STATION"
+  | "FORENSIC_LAB"
+  | "COURT"
+  | "OTHER";
+
 export interface Role {
   id: string;
   name: RoleName;
@@ -37,6 +48,9 @@ export interface Department {
   id: string;
   name: string;
   description: string | null;
+  org_type: OrgType;
+  parent_id: string | null;
+  path: string;
 }
 
 export interface User {
@@ -189,3 +203,21 @@ export interface Page<T> {
   offset: number;
 }
 export * from "./evidence";
+
+export interface BlockchainAnchor {
+  status: "PENDING" | "ANCHORED" | "FAILED";
+  tx_hash: string | null;
+  block_number: number | null;
+  error_message?: string | null;
+  anchored_at?: string | null;
+}
+
+export interface VerifyChainResult {
+  status: "VERIFIED" | "MISMATCH" | "PENDING" | "UNAVAILABLE";
+  stored_hash: string;
+  computed_hash: string;
+  on_chain_hash: string | null;
+  tx_hash: string | null;
+  block_number: number | null;
+  detail: string;
+}

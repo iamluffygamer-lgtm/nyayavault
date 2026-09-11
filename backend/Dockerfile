@@ -8,7 +8,7 @@ WORKDIR /app
 
 # libpq is needed by psycopg2; curl is used by container healthchecks.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libpq5 curl poppler-utils tesseract-ocr tesseract-ocr-eng \
+ && apt-get install -y --no-install-recommends libpq5 curl poppler-utils tesseract-ocr tesseract-ocr-eng gcc python3-dev libpq-dev \
  && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

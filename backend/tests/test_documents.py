@@ -357,3 +357,19 @@ def test_document_list_carries_current_version_metadata(client):
     assert items[0]["latest_sha256"] == hashlib.sha256(payload).hexdigest()
     assert items[0]["latest_file_size"] == len(payload)
     assert items[0]["current_version"] == 1
+
+
+def test_demo_tamper_endpoint_returns_404_when_disabled(client, db_session, monkeypatch):
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "allow_demo_tamper", False)
+    from tests.conftest import login, create_case, upload_document
+    token = login(client, "admin")
+    case = create_case(client, token)
+    doc = upload_document(client, token, case["id"]).json()
+    
+    resp = client.post(
+        f"/api/v1/documents/{doc['id']}/versions/{doc['current_version']}/demo-tamper",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert resp.status_code == 404
+    assert resp.json()["error"]["message"] == "Not Found"

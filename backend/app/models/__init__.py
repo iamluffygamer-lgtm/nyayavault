@@ -52,3 +52,7 @@ __all__ = [
     "EvidenceStatus",
     "TransferStatus",
 ]
+
+from .blockchain import BlockchainAnchor, AnchorStatus
+from app.models.court_access import CourtAccessGrant, CourtAccessStatus
+__all__.extend(["CourtAccessGrant", "CourtAccessStatus"])

@@ -13,6 +13,7 @@ from app.models.case import CaseStatus
 from app.models.document import Document
 from app.schemas.audit import AuditEventRead
 from app.schemas.case import (
+    TimelineEvent,
     CaseAssignmentCreate,
     CaseAssignmentRead,
     CaseCreate,
@@ -208,3 +209,107 @@ def case_audit(
         limit=limit,
         offset=offset,
     )
+
+
+@router.post(
+    "/{case_id}/lock-for-court",
+    response_model=CaseRead,
+    summary="Lock case for court (MANAGE access)",
+)
+def lock_case_for_court(case_id: uuid.UUID, db: DbSession, user: CurrentUser) -> Any:
+    access = get_case_for_user(db, user, case_id)
+    if not access.can_manage:
+        from app.errors import PermissionDeniedError
+        raise PermissionDeniedError("You do not manage this case.")
+    
+    case = access.case
+    if case.status != CaseStatus.SUBMITTED:
+        from app.errors import ValidationError
+        raise ValidationError("Only SUBMITTED cases can be locked for court.")
+        
+    old_status = case.status
+    case.status = CaseStatus.UNDER_TRIAL
+    db.flush()
+    
+    # Audit log
+    record_event(
+        db,
+        action=AuditAction.CASE_STATUS_CHANGED,
+        entity_type="CASE",
+        entity_id=case.id,
+        actor_id=user.id,
+        case_id=case.id,
+        metadata={"old": str(old_status), "new": str(case.status)}
+    )
+    return case
+
+
+@router.post(
+    "/{case_id}/court-access",
+    summary="Generate court access code (MANAGE access)",
+)
+def generate_court_access(case_id: uuid.UUID, db: DbSession, user: CurrentUser) -> dict[str, str]:
+    access = get_case_for_user(db, user, case_id)
+    if not access.can_manage:
+        from app.errors import PermissionDeniedError
+        raise PermissionDeniedError("You do not manage this case.")
+        
+    case = access.case
+    if case.status != CaseStatus.UNDER_TRIAL:
+        from app.errors import ValidationError
+        raise ValidationError("Case must be UNDER_TRIAL to grant court access.")
+        
+    plaintext_code = secrets.token_urlsafe(16)
+    code_hash = hash_password(plaintext_code)
+    reference = secrets.token_hex(4)  # 8 char hex string
+    
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(days=30)
+    
+    grant = CourtAccessGrant(
+        case_id=case.id,
+        code_hash=code_hash,
+        reference=reference,
+        created_by=user.id,
+        expires_at=expires_at,
+    )
+    db.add(grant)
+    db.flush()
+    
+    record_event(
+        db,
+        action=AuditAction.COURT_ACCESS_GRANTED,
+        entity_type="COURT_ACCESS_GRANT",
+        entity_id=grant.id,
+        actor_id=user.id,
+        case_id=case.id,
+        metadata={"reference": reference, "expires_at": expires_at.isoformat()}
+    )
+    
+    return {"reference": reference, "code": plaintext_code}
+
+@router.get(
+    "/{case_id}/timeline",
+    response_model=Page[TimelineEvent],
+    summary="Get unified case timeline",
+)
+def get_timeline(
+    case_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+    limit: int = 50,
+    offset: int = 0,
+) -> Any:
+    # authorize
+    get_case_for_user(db, user, case_id)
+    
+    from app.services.case_service import get_case_timeline
+    events, total = get_case_timeline(db, case_id, limit, offset)
+    
+    return {
+        "items": events,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }

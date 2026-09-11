@@ -108,8 +108,13 @@ def execute_search(
             else:
                 # Generate snippet securely via postgres ts_headline
                 ts_query = func.websearch_to_tsquery('english', q)
-                snippet_stmt = select(func.ts_headline('english', dt.extracted_text, ts_query, 'MaxWords=30, MinWords=15, StartSel=***, StopSel=***'))
-                snippet = db.execute(snippet_stmt).scalar_one_or_none()
+                snippet_stmt = select(func.ts_headline('english', dt.extracted_text, ts_query, 'MaxWords=30, MinWords=15, StartSel=__START_MATCH__, StopSel=__END_MATCH__'))
+                raw_snippet = db.execute(snippet_stmt).scalar_one_or_none()
+                if raw_snippet:
+                    import html
+                    snippet = html.escape(raw_snippet).replace("__START_MATCH__", "<b>").replace("__END_MATCH__", "</b>")
+                else:
+                    snippet = None
 
         items.append({
             "document_id": doc.id,

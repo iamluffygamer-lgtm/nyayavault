@@ -5,6 +5,8 @@ import uuid
 from typing import TYPE_CHECKING
 
 from sqlalchemy import String
+from enum import StrEnum
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, uuid_pk
@@ -12,6 +14,16 @@ from app.models.base import Base, uuid_pk
 if TYPE_CHECKING:
     from app.models.user import User
 
+
+class OrgType(StrEnum):
+    NATIONAL = "NATIONAL"
+    STATE = "STATE"
+    DISTRICT = "DISTRICT"
+    POLICE_UNIT = "POLICE_UNIT"
+    STATION = "STATION"
+    FORENSIC_LAB = "FORENSIC_LAB"
+    COURT = "COURT"
+    OTHER = "OTHER"
 
 class Department(Base):
     """Organisational unit a user belongs to (e.g. Cyber Crime Cell, FSL)."""
@@ -23,7 +35,7 @@ class Department(Base):
     description: Mapped[str | None] = mapped_column(String(512))
     
     parent_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("departments.id", ondelete="RESTRICT"), nullable=True, index=True)
-    org_type: Mapped[str] = mapped_column(String(32), default="UNIT", nullable=False)
+    org_type: Mapped[OrgType] = mapped_column(SAEnum(OrgType, native_enum=False, length=32, validate_strings=True), default=OrgType.OTHER, nullable=False)
     path: Mapped[str] = mapped_column(String(255), default="/", nullable=False, index=True)
 
     users: Mapped[list["User"]] = relationship(back_populates="department")

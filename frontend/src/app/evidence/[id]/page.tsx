@@ -7,7 +7,7 @@ import { ArrowLeft, ShieldCheck, ShieldAlert, ArrowRightLeft } from "lucide-reac
 
 import { AppShell } from "@/components/layout/app-shell";
 import { Button, Card, CardBody, CardHeader, CardTitle, Badge } from "@/components/ui";
-import { CustodyTimeline } from "@/components/evidence/custody-timeline";
+import { CaseTimeline, type TimelineEvent } from "@/components/cases/case-timeline";
 import { api } from "@/lib/api";
 import { EvidenceRead, EvidenceTransferRead, IntegrityVerificationResult } from "@/types/evidence";
 import { titleCase, formatDate } from "@/lib/utils";
@@ -17,7 +17,7 @@ export default function EvidenceDetailPage() {
   const evidenceId = params?.id as string;
 
   const [evidence, setEvidence] = useState<EvidenceRead | null>(null);
-  const [transfers, setTransfers] = useState<EvidenceTransferRead[]>([]);
+  const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [integrity, setIntegrity] = useState<IntegrityVerificationResult | null>(null);
   
   const [loading, setLoading] = useState(true);
@@ -27,11 +27,11 @@ export default function EvidenceDetailPage() {
   useEffect(() => {
     Promise.all([
       api.getEvidence(evidenceId),
-      api.listTransfers(evidenceId)
+      api.getEvidenceTimeline(evidenceId)
     ])
       .then(([ev, tr]) => {
         setEvidence(ev);
-        setTransfers(tr);
+        setEvents(tr.items);
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
@@ -57,7 +57,7 @@ export default function EvidenceDetailPage() {
       <div className="mb-6 flex items-center gap-4">
         <Link
           href={`/cases/${evidence.case_id}`}
-          className="rounded-md p-2 text-muted hover:bg-surface-hover hover:text-ink"
+          className="rounded-md p-2 text-muted hover:bg-elevated hover:text-ink"
         >
           <ArrowLeft className="h-5 w-5" />
         </Link>
@@ -126,7 +126,7 @@ export default function EvidenceDetailPage() {
                     <div className="break-all font-mono text-xs text-muted">{evidence.sha256_hash}</div>
                   </div>
                   {integrity && (
-                    <div className={`mt-4 rounded-md p-3 text-sm ${integrity.is_intact ? "bg-success/10 text-success" : "bg-danger/10 text-danger"}`}>
+                    <div className={`mt-4 rounded-md p-3 text-sm ${integrity.is_intact ? "bg-ok/10 text-ok" : "bg-danger/10 text-danger"}`}>
                       <div className="font-semibold flex items-center gap-2">
                         {integrity.is_intact ? <ShieldCheck className="w-4 h-4" /> : <ShieldAlert className="w-4 h-4" />}
                         {integrity.is_intact ? "Verification Passed" : "Verification Failed"}
@@ -144,9 +144,9 @@ export default function EvidenceDetailPage() {
           
           <Card>
             <CardHeader>
-              <CardTitle>Chain of Custody</CardTitle>
+              <CardTitle>Full History & Custody</CardTitle>
             </CardHeader>
-            <CustodyTimeline transfers={transfers} />
+            <CaseTimeline events={events} />
           </Card>
         </div>
 

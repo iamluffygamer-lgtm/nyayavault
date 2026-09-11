@@ -132,6 +132,7 @@ class DocumentVersion(Base):
     document: Mapped["Document"] = relationship(back_populates="versions")
     uploader: Mapped["User"] = relationship(lazy="joined", foreign_keys=[uploaded_by])
     text: Mapped["DocumentText | None"] = relationship(back_populates="version")
+    blockchain_anchor: Mapped["BlockchainAnchor | None"] = relationship(back_populates="document_version", uselist=False, cascade="all, delete-orphan")
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<DocumentVersion {self.document_id} v{self.version_number}>"

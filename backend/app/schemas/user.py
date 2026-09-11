@@ -17,10 +17,30 @@ class RoleRead(ORMModel):
     description: str | None = None
 
 
+from app.models.department import OrgType
 class DepartmentRead(ORMModel):
     id: uuid.UUID
     name: str
     description: str | None = None
+    org_type: OrgType
+    parent_id: uuid.UUID | None = None
+    path: str
+
+class DepartmentCreate(BaseModel):
+    name: str = Field(..., max_length=128)
+    description: str | None = Field(None, max_length=512)
+    org_type: OrgType = OrgType.OTHER
+    parent_id: uuid.UUID | None = None
+
+class DepartmentUpdate(BaseModel):
+    name: str | None = Field(None, max_length=128)
+    description: str | None = Field(None, max_length=512)
+    parent_id: uuid.UUID | None = None
+
+class UserUpdate(BaseModel):
+    is_active: bool | None = None
+    role_id: uuid.UUID | None = None
+    department_id: uuid.UUID | None = None
 
 
 class UserRead(ORMModel):

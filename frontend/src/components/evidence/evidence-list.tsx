@@ -87,7 +87,7 @@ export function EvidenceList({ caseId }: { caseId: string }) {
                   <Td>{ev.custodian?.full_name || ev.custodian?.username || "Unknown"}</Td>
                   <Td>
                     {ev.sha256_hash ? (
-                      <span className="inline-flex items-center gap-1 text-success">
+                      <span className="inline-flex items-center gap-1 text-ok">
                         <ShieldCheck className="h-3 w-3" /> Hash linked
                       </span>
                     ) : (
